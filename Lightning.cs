@@ -1,4 +1,5 @@
-﻿using ProtoBuf;
+﻿using Jakaria.Utils;
+using ProtoBuf;
 using Sandbox.Game;
 using Sandbox.Game.Entities;
 using Sandbox.ModAPI;
@@ -70,6 +71,9 @@ namespace Jakaria
 
             if (MyAPIGateway.Session.IsServer || Vector3D.DistanceSquared(Position, NebulaMod.Session.CameraPosition) < 16000)
             {
+                if (MyGamePruningStructure.GetClosestPlanet(Position) != null)
+                    return;
+
                 BoundingSphereD Sphere = new BoundingSphereD(Position, Builder.BoltVariation);
 
                 List<MyEntity> Result = new List<MyEntity>();
@@ -113,7 +117,7 @@ namespace Jakaria
 
                 if (MyAPIGateway.Session.IsServer)
                 {
-                    MyExplosionInfo ExplosionInfo = new MyExplosionInfo(50, 50, new BoundingSphereD(Parts[0], 1), MyExplosionTypeEnum.CUSTOM, true);
+                    MyExplosionInfo ExplosionInfo = new MyExplosionInfo(50, 5, new BoundingSphereD(Parts[0], 1), MyExplosionTypeEnum.CUSTOM, true);
                     MyExplosions.AddExplosion(ref ExplosionInfo);
                 }
             }
@@ -159,7 +163,7 @@ namespace Jakaria
 
         public void Draw()
         {
-            float ratio = (1f - easeOutBounce(Life / (float)Builder.MaxLife));
+            float ratio = (1f - JakUtils.EaseOutBounce(Life / (float)Builder.MaxLife));
             Vector4 color = Builder.Color * ratio;
             color.W *= ratio;
 
@@ -173,29 +177,6 @@ namespace Jakaria
         public void Simulate()
         {
             Life++;
-        }
-
-        float easeOutBounce(float x)
-        {
-            float n1 = 7.5625f;
-            float d1 = 2.75f;
-
-            if (x < 1 / d1)
-            {
-                return n1 * x * x;
-            }
-            else if (x < 2 / d1)
-            {
-                return n1 * (x -= 1.5f / d1) * x + 0.75f;
-            }
-            else if (x < 2.5 / d1)
-            {
-                return n1 * (x -= 2.25f / d1) * x + 0.9375f;
-            }
-            else
-            {
-                return n1 * (x -= 2.625f / d1) * x + 0.984375f;
-            }
         }
     }
 }

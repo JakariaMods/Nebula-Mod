@@ -9,6 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
 using VRage.Game.Components;
+using VRage.Utils;
 using VRageMath;
 
 namespace Jakaria.API
@@ -22,7 +23,7 @@ namespace Jakaria.API
             //Put any Custom Weathers you want here
             /*new WeatherBuilder()
             {
-                 Name = "Custom",
+                 Name = "Example",
                  MinLightningFrequency = 5,
                  MaxLightningFrequency = 10,
 
@@ -37,7 +38,8 @@ namespace Jakaria.API
 
                 RadiationCharacterDamage = 20,
                 AmbientSound = "JGeigerAmbient",
-                ForceDisableDampeners = true,
+                DisableDampenersCharacter  = true,
+                DisableDampenersGrid = true,
                 RenderIons = true,
                 AmbientRadiationAmount = 5,
                 DamageRadiationAmount = 200,
@@ -45,7 +47,13 @@ namespace Jakaria.API
                 {
                     "MyObjectBuilder_JumpDrive"
                 },
-                HudWarning = "Custom Weather Inbound, Joe Mama",
+                HudWarning = "If this is enabled go yell at jakaria :/",
+                Weight = 1,
+                CharacterWindForce = 0,
+                GridWindForce = 0,
+                DustAmount = 0,
+                GridDragForce = 0,
+                CharacterDragForce = 0,
             },*/
         };
 
@@ -54,7 +62,7 @@ namespace Jakaria.API
         public static string ModName = MyAPIGateway.Utilities.GamePaths.ModScopeName.Split('_')[1];
         public const ushort ModHandlerID = 13377;
         public const ushort ModHandlerIDWeather = 13378;
-        public const int ModAPIVersion = 2;
+        public const int ModAPIVersion = 4;
         public bool Registered { get; private set; } = false;
 
         private static Dictionary<string, Delegate> ModAPIMethods;
@@ -180,12 +188,15 @@ namespace Jakaria.API
                     _ForceRenderIons = (Action<bool?>)ModAPIMethods["ForceRenderIons"];
                     _RunCommand = (Action<string>)ModAPIMethods["RunCommand"];
                 }
-                finally
+                catch (Exception e)
                 {
-                    if (CustomWeathers.Length > 0)
-                    {
-                        MyAPIGateway.Utilities.SendModMessage(ModHandlerIDWeather, MyAPIGateway.Utilities.SerializeToBinary(CustomWeathers));
-                    }
+                    MyAPIGateway.Utilities.ShowMessage("NebulaMod", "Mod '" + ModName + "' encountered an error when registering the Nebula Mod API, see log for more info.");
+                    MyLog.Default.WriteLine(e);
+                }
+
+                if (CustomWeathers.Length > 0)
+                {
+                    MyAPIGateway.Utilities.SendModMessage(ModHandlerIDWeather, MyAPIGateway.Utilities.SerializeToBinary(CustomWeathers));
                 }
             }
         }
@@ -216,10 +227,20 @@ namespace Jakaria.API
             [ProtoIgnore, XmlIgnore]
             public MySoundPair AmbientSoundPair;
 
-            [ProtoMember(15)]
+            [ProtoMember(15), Obsolete]
             public bool ForceDisableDampeners;
+
+            [ProtoMember(16)]
+            public bool DisableDampenersGrid;
+
+            [ProtoMember(17)]
+            public bool DisableDampenersCharacter;
+
             [ProtoMember(20)]
             public bool RenderIons;
+
+            //[ProtoMember(21)]
+            //public bool RenderComets; //TODO
 
             [ProtoMember(25)]
             public int AmbientRadiationAmount;
@@ -231,6 +252,24 @@ namespace Jakaria.API
 
             [ProtoMember(35)]
             public string HudWarning;
+
+            [ProtoMember(36)]
+            public int Weight;
+
+            [ProtoMember(40)]
+            public float CharacterWindForce;
+
+            [ProtoMember(41)]
+            public float GridWindForce;
+
+            [ProtoMember(45)]
+            public int DustAmount;
+
+            [ProtoMember(46)]
+            public float GridDragForce;
+
+            [ProtoMember(47)]
+            public float CharacterDragForce;
         }
 
         [ProtoContract]

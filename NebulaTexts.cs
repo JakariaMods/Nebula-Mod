@@ -51,5 +51,8 @@ namespace Jakaria
         public const string NoRoom = "You're too close to another nebula.";
         public const string NoPermissions = "You're not a high enough rank to do this.";
         public const string NoWeather = "No weather is occuring.";
+        public const string ExpectedParameters2 = "Expected two parameters.";
+        public const string ExpectedParameters3 = "Expected three parameters.";
+        public const string ExpectedParameters4 = "Expected four parameters.";
     }
 }

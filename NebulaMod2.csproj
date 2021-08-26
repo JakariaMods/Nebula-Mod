@@ -39,7 +39,7 @@
     <Compile Include="Lightning.cs" />
     <Compile Include="API\NebulaAPI.cs" />
     <Compile Include="API\NebulaBackend.cs" />
-    <Compile Include="Ion.cs" />
+    <Compile Include="SimpleParticle.cs" />
     <Compile Include="NebulaResourceCollector.cs" />
     <Compile Include="Utils\FastNoiseLite.cs" />
     <Compile Include="Utils\JakUtils.cs" />

@@ -7,12 +7,12 @@ using VRageMath;
 
 namespace Jakaria
 {
-    public class Ion
+    public class SimpleParticle
     {
         public Vector3D Position;
         public int Life;
 
-        public Ion(Vector3D position, int life)
+        public SimpleParticle(Vector3D position, int life)
         {
             Position = position;
             Life = life;

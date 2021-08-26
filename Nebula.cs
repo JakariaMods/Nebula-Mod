@@ -45,9 +45,9 @@ namespace Jakaria
         [ProtoMember(31), XmlElement]
         public int NextWeather = 0;
         [ProtoMember(32), XmlElement]
-        public int MinWeatherFrequency = 72000;
+        public int MinWeatherFrequency = 144000;
         [ProtoMember(33), XmlElement]
-        public int MaxWeatherFrequency = 144000;
+        public int MaxWeatherFrequency = 288000;
         [ProtoMember(35), XmlElement]
         public int MinWeatherLength = 18000;
         [ProtoMember(36), XmlElement]
@@ -113,7 +113,7 @@ namespace Jakaria
             foreach (var Weather in SpaceWeathers)
             {
                 double LineDistance = MyUtils.GetPointLineDistance(ref Weather.StartPosition, ref Weather.EndPosition, ref position);
-                if (LineDistance - radius < Weather.Radius)
+                if (LineDistance - radius < Weather.Radius || Vector3D.Distance(Weather.StartPosition, position) < radius)
                     return false;
             }
 
@@ -143,7 +143,8 @@ namespace Jakaria
                         NextWeather = MyUtils.GetRandomInt(MinWeatherFrequency, MaxWeatherFrequency);
                         foreach (var Player in NebulaMod.Static.Players)
                         {
-                            CreateRandomWeather(Player.GetPosition());
+                            if (IsInsideNebulaBounding(Player.GetPosition()))
+                                CreateRandomWeather(Player.GetPosition());
                         }
                     }
                 }
@@ -154,7 +155,10 @@ namespace Jakaria
                 SpaceWeather Weather = SpaceWeathers[i];
                 Weather.Simulate();
 
-                if (Weather.MaxLife != -1 && Weather.Life >= Weather.MaxLife)
+                if (Weather.Builder == null)
+                    Weather.Init();
+
+                if (Weather.MaxLife != -1 && Weather.Life >= Weather.MaxLife || Weather.Builder == null)
                 {
                     SpaceWeathers.RemoveAtFast(i);
 

@@ -66,7 +66,7 @@ namespace Jakaria
         {
             NebulaMod.Static.WeatherBuilders.TryGetValue(Weather, out Builder);
 
-            if (!MyAPIGateway.Utilities.IsDedicated)
+            if (!MyAPIGateway.Utilities.IsDedicated && Builder?.HudWarning != null)
             {
                 double LineDistance = MyUtils.GetPointLineDistance(ref StartPosition, ref EndPosition, ref NebulaMod.Session.CameraPosition);
                 if (double.IsNaN(LineDistance) || LineDistance < Radius)
@@ -85,7 +85,10 @@ namespace Jakaria
                 Init();
 
             if (Builder == null)
+            {
+                Life = MaxLife;
                 return;
+            }
 
             Position += Velocity * MyEngineConstants.PHYSICS_STEP_SIZE_IN_SECONDS;
             Life++;
@@ -101,15 +104,28 @@ namespace Jakaria
 
             foreach (var Entity in ContainedEntities)
             {
-                if (Entity.MarkedForClose || Entity.IsPreview)
+                if (Entity.MarkedForClose || Entity.IsPreview || Entity.Physics == null)
                     continue;
 
                 if (Entity is MyCubeGrid)
                 {
                     MyCubeGrid Grid = (Entity as MyCubeGrid);
                     //(Entity as MyCubeGrid).EntityThrustComponent.DampenersEnabled = false;
-                    if (Builder.ForceDisableDampeners && Grid.DampenersEnabled)
-                        MyVisualScriptLogicProvider.SetDampenersEnabled(Entity.Name, false);
+
+                    if (!Grid.Physics.IsStatic && Vector3.IsZero(Grid.Physics.Gravity))
+                    {
+                        if (Builder.DisableDampenersGrid && Grid.DampenersEnabled)
+                            MyVisualScriptLogicProvider.SetDampenersEnabled(Entity.Name, false);
+
+                        if (MyAPIGateway.Session.IsServer)
+                        {
+                            if (Builder.GridDragForce > 0)
+                                Grid.Physics.AddForce(VRage.Game.Components.MyPhysicsForceType.APPLY_WORLD_FORCE, -(Grid.Physics.LinearVelocity) * Builder.GridDragForce * MyEngineConstants.PHYSICS_STEP_SIZE_IN_SECONDS, null, null);
+
+                            if (Builder.GridWindForce != 0)
+                                Grid.Physics.AddForce(VRage.Game.Components.MyPhysicsForceType.APPLY_WORLD_FORCE, NebulaMod.Session.SunDirection * -Builder.GridWindForce * MyEngineConstants.PHYSICS_STEP_SIZE_IN_SECONDS, null, null);
+                        }
+                    }
 
                     if (Builder.BlocksToDisable?.Length > 0)
                         foreach (var Block in Grid.GetFatBlocks())
@@ -130,19 +146,29 @@ namespace Jakaria
                 {
                     IMyCharacter Character = Entity as IMyCharacter;
 
-                    if (Builder.ForceDisableDampeners && Character.EnabledDamping)
-                        Character.SwitchDamping();
+                    if(Vector3.IsZero(Character.Physics.Gravity))
+                    {
+                        if (Builder.DisableDampenersCharacter && Character.EnabledDamping)
+                            Character.SwitchDamping();
 
+                        if (Builder.CharacterDragForce > 0)
+                            Character.Physics?.AddForce(VRage.Game.Components.MyPhysicsForceType.APPLY_WORLD_FORCE, -(Character.Physics.LinearVelocity) * Builder.CharacterDragForce, null, null);
+
+                        if (Builder.CharacterWindForce != 0)
+                            Character.Physics.AddForce(VRage.Game.Components.MyPhysicsForceType.APPLY_WORLD_FORCE, NebulaMod.Session.SunDirection * -Builder.CharacterWindForce * MyEngineConstants.PHYSICS_STEP_SIZE_IN_SECONDS, null, null);
+                    }
+                    
                     if (MyAPIGateway.Session.IsServer)
                     {
-                        if (NebulaMod.Static.PlayerDamageCounter == 0 && Builder.RadiationCharacterDamage > 0)
+                        if (NebulaMod.Static.PlayerDamageCounter == 0 && (Builder.RadiationCharacterDamage > 0 || Builder.CharacterWindForce != 0))
                         {
                             IHitInfo Hit;
                             Vector3D PlayerPosition = Character.GetHeadMatrix(false).Translation;
 
                             if (!MyAPIGateway.Physics.CastRay(PlayerPosition, PlayerPosition + (NebulaMod.Session.SunDirection * 1000), out Hit, CollisionLayers.CollisionLayerWithoutCharacter))
                             {
-                                Character.DoDamage(Builder.RadiationCharacterDamage, MyDamageType.Radioactivity, true);
+                                if (Builder.RadiationCharacterDamage > 0)
+                                    Character.DoDamage(Builder.RadiationCharacterDamage, MyDamageType.Radioactivity, true);
                             }
                         }
                     }
@@ -183,6 +209,8 @@ namespace Jakaria
                                 NebulaMod.Static.DamageSound.PlaySound(NebulaData.GeigerSound);
                         }
                     }
+                    if (Builder.DustAmount > 0)
+                        NebulaMod.Static.DustAmount = Builder.DustAmount;
 
                     //AmbientVolume = (AmbientVolume + ((1f - AmbientVolume) * 0.01f))
                     if (Builder.DamageRadiationAmount > 0 && InRadiation)
@@ -243,10 +271,20 @@ namespace Jakaria
         [ProtoIgnore, XmlIgnore]
         public MySoundPair AmbientSoundPair;
 
-        [ProtoMember(15)]
-        public bool ForceDisableDampeners;
+        [ProtoMember(15), Obsolete]
+        public bool ForceDisableDampeners; //Unused
+
+        [ProtoMember(16)]
+        public bool DisableDampenersGrid;
+
+        [ProtoMember(17)]
+        public bool DisableDampenersCharacter;
+
         [ProtoMember(20)]
         public bool RenderIons;
+
+        //[ProtoMember(21)]
+        //public bool RenderComets; //TODO
 
         [ProtoMember(25)]
         public int AmbientRadiationAmount;
@@ -259,9 +297,31 @@ namespace Jakaria
         [ProtoMember(35)]
         public string HudWarning;
 
+        [ProtoMember(36)]
+        public int Weight;
+
+        [ProtoMember(40)]
+        public float CharacterWindForce;
+
+        [ProtoMember(41)]
+        public float GridWindForce;
+
+        [ProtoMember(45)]
+        public int DustAmount;
+
+        [ProtoMember(46)]
+        public float GridDragForce;
+
+        [ProtoMember(47)]
+        public float CharacterDragForce;
+
         public void Init()
         {
             AmbientSoundPair = new MySoundPair(AmbientSound);
+            for (int i = 0; i < Weight; i++)
+            {
+                NebulaMod.Static.WeatherRandomizer.Add(Name);
+            }
         }
     }
 

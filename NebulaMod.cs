@@ -31,6 +31,7 @@ namespace Jakaria
         public static NebulaMod Static;
 
         public Dictionary<string, WeatherBuilder> WeatherBuilders = new Dictionary<string, WeatherBuilder>();
+        public List<string> WeatherRandomizer = new List<string>();
 
         public List<Lightning> Lightnings = new List<Lightning>();
         public List<IMyPlayer> Players = new List<IMyPlayer>();
@@ -39,12 +40,20 @@ namespace Jakaria
         public MyEntity3DSoundEmitter AmbientSound = new MyEntity3DSoundEmitter(null);
         public MyEntity3DSoundEmitter DamageSound = new MyEntity3DSoundEmitter(null);
 
-        public List<Ion> Ions = new List<Ion>(128);
+        public List<SimpleParticle> Ions = new List<SimpleParticle>();
+        public List<SimpleParticle> Comets = new List<SimpleParticle>();
+        public List<SimpleParticle> Dust = new List<SimpleParticle>();
+
         public int RadiationPixelsAmount = 0;
+        public int DustAmount = 0;
 
         public int? RadiationOverride = null;
+        public int? RenderDustOverride = null;
         public bool? RenderIonsOverride = null;
+        public bool? RenderCometsOverride = null;
         public Vector3D IonSpeed = Vector3D.Forward;
+        public Vector3D CometSpeed = Vector3D.Forward;
+        public Vector3D DustSpeed = Vector3D.Right;
 
         public static class Session
         {
@@ -54,6 +63,7 @@ namespace Jakaria
             public static bool InsideNebulaBounding = false;
             public static Vector3D PlayerPosition = Vector3D.Zero;
             public static Nebula ClosestNebula = null;
+            public static MyPlanet ClosestPlanet = null;
             public static SpaceWeather ClosestSpaceWeather = null;
             public static float ClosestWeatherIntensity = 0;
             public static float NebulaDepthRatioRaw = 0f;
@@ -81,38 +91,49 @@ namespace Jakaria
             WeatherBuilder.Name = "LightningStorm";
             WeatherBuilder.MinLightningFrequency = 5;
             WeatherBuilder.MaxLightningFrequency = 30;
-            WeatherBuilder.RadiationCharacterDamage = 0;
             WeatherBuilder.HudWarning = "Lightning Storm Inbound";
+            WeatherBuilder.Weight = 2;
             LightningBuilder = WeatherBuilder.Lightning = new LightningBuilder();
             LightningBuilder.MaxLife = 25;
             LightningBuilder.BoltParts = 50;
             LightningBuilder.BoltVariation = 100;
             LightningBuilder.BoltRadius = 5;
             LightningBuilder.Color = Vector4.One * 3;
+            WeatherBuilder.Init();
 
             WeatherBuilder = WeatherBuilders["RadiationStorm"] = new WeatherBuilder();
             WeatherBuilder.Name = "RadiationStorm";
-            WeatherBuilder.MinLightningFrequency = 0;
-            WeatherBuilder.MaxLightningFrequency = 0;
             WeatherBuilder.RadiationCharacterDamage = 5;
-            WeatherBuilder.AmbientSoundPair = new MySoundPair("JGeigerAmbient");
+            WeatherBuilder.AmbientSound = "JGeigerAmbient";
             WeatherBuilder.HudWarning = "Radiation Storm Inbound, Seek Shelter Immediately";
             WeatherBuilder.AmbientRadiationAmount = 5;
             WeatherBuilder.DamageRadiationAmount = 100;
+            WeatherBuilder.Weight = 2;
+            WeatherBuilder.Init();
 
             WeatherBuilder = WeatherBuilders["IonStorm"] = new WeatherBuilder();
             WeatherBuilder.Name = "IonStorm";
-            WeatherBuilder.MinLightningFrequency = 0;
-            WeatherBuilder.MaxLightningFrequency = 0;
-            WeatherBuilder.RadiationCharacterDamage = 0;
-            WeatherBuilder.ForceDisableDampeners = true;
+            WeatherBuilder.DisableDampenersCharacter = true;
+            WeatherBuilder.DisableDampenersGrid = true;
             WeatherBuilder.RenderIons = true;
-            WeatherBuilder.AmbientSoundPair = new MySoundPair("JIonInterference");
+            WeatherBuilder.AmbientSound = "JIonInterference";
             WeatherBuilder.BlocksToDisable = new string[]
             {
             "MyObjectBuilder_JumpDrive"
             };
             WeatherBuilder.HudWarning = "Ion Storm Inbound, Electronics May Fail";
+            WeatherBuilder.Weight = 1;
+            WeatherBuilder.Init();
+
+            WeatherBuilder = WeatherBuilders["DustStorm"] = new WeatherBuilder();
+            WeatherBuilder.Name = "DustStorm";
+            WeatherBuilder.DustAmount = 256;
+            WeatherBuilder.GridDragForce = 75;
+            WeatherBuilder.CharacterDragForce = 5;
+            WeatherBuilder.AmbientSound = "JWindAmbient";
+            WeatherBuilder.HudWarning = "Dust Storm Inbound, Expect Added Resistance";
+            WeatherBuilder.Weight = 2;
+            WeatherBuilder.Init();
 
             JakUtils.ShowMessage(NebulaTexts.NebulaModVersion.Replace("{0}", NebulaData.Version));
 
@@ -492,7 +513,8 @@ namespace Jakaria
                     int tempMinFrequency = 1000;
                     int tempMaxFrequency = 1000;
 
-                    if (args.Length >= 3)
+                    if (args.Length == 3)
+                    {
                         if (int.TryParse(args[1], out tempMinFrequency))
                         {
                             if (int.TryParse(args[1], out tempMaxFrequency))
@@ -515,8 +537,11 @@ namespace Jakaria
                         }
                         else
                             JakUtils.ShowMessage(NebulaTexts.NoParseInt.Replace("{0}", args[1]));
-                    else
+                    }
+                    else if (args.Length == 1)
                         JakUtils.ShowMessage(NebulaTexts.NebulaGetFrequency.Replace("{0}", (Session.ClosestNebula.MinWeatherFrequency / 60).ToString()).Replace("{1}", (Session.ClosestNebula.MaxWeatherFrequency / 60).ToString()));
+                    else
+                        JakUtils.ShowMessage(NebulaTexts.ExpectedParameters2);
 
                     break;
 
@@ -538,7 +563,8 @@ namespace Jakaria
                     int tempMinLength = 100;
                     int tempMaxLength = 1000;
 
-                    if (args.Length >= 3)
+                    if (args.Length == 3)
+                    {
                         if (int.TryParse(args[1], out tempMinLength))
                         {
                             if (int.TryParse(args[2], out tempMaxLength))
@@ -561,8 +587,11 @@ namespace Jakaria
                         }
                         else
                             JakUtils.ShowMessage(NebulaTexts.NoParseInt.Replace("{0}", args[1]));
-                    else
+                    }
+                    else if (args.Length == 1)
                         JakUtils.ShowMessage(NebulaTexts.NebulaGetLength.Replace("{0}", (Session.ClosestNebula.MinWeatherLength / 60).ToString()).Replace("{1}", (Session.ClosestNebula.MaxWeatherLength / 60).ToString()));
+                    else
+                        JakUtils.ShowMessage(NebulaTexts.ExpectedParameters2);
 
                     break;
 
@@ -583,7 +612,7 @@ namespace Jakaria
 
                     float tempDensity = 0.75f;
 
-                    if (args.Length >= 2)
+                    if (args.Length == 2)
                         if (float.TryParse(args[1], out tempDensity))
                         {
                             foreach (var nebula in Nebulae)
@@ -623,7 +652,7 @@ namespace Jakaria
 
                     int tempSeed;
 
-                    if (args.Length >= 2)
+                    if (args.Length == 2)
                         if (int.TryParse(args[1], out tempSeed))
                         {
                             foreach (var nebula in Nebulae)
@@ -661,7 +690,7 @@ namespace Jakaria
 
                     float tempScale;
 
-                    if (args.Length >= 2)
+                    if (args.Length == 2)
                         if (float.TryParse(args[1], out tempScale))
                         {
                             foreach (var nebula in Nebulae)
@@ -699,7 +728,7 @@ namespace Jakaria
 
                     float tempColorScale;
 
-                    if (args.Length >= 2)
+                    if (args.Length == 2)
                         if (float.TryParse(args[1], out tempColorScale))
                         {
                             foreach (var nebula in Nebulae)
@@ -785,8 +814,10 @@ namespace Jakaria
 
                         SyncToServer(NebulaPacketType.Nebulae);
                     }
-                    else
+                    else if (args.Length == 1)
                         JakUtils.ShowMessage(NebulaTexts.NebulaGetPrimaryColor.Replace("{0}", Session.ClosestNebula.PrimaryColor.ToString()));
+                    else
+                        JakUtils.ShowMessage(NebulaTexts.ExpectedParameters4);
 
                     break;
                 case "nsecondary":
@@ -852,8 +883,10 @@ namespace Jakaria
 
                         SyncToServer(NebulaPacketType.Nebulae);
                     }
-                    else
+                    else if (args.Length == 1)
                         JakUtils.ShowMessage(NebulaTexts.NebulaGetSecondaryColor.Replace("{0}", Session.ClosestNebula.SecondaryColor.ToString()));
+                    else
+                        JakUtils.ShowMessage(NebulaTexts.ExpectedParameters4);
 
                     break;
                 case "nradius":
@@ -873,7 +906,7 @@ namespace Jakaria
 
                     int tempRadius2;
 
-                    if (args.Length >= 2)
+                    if (args.Length == 2)
                         if (int.TryParse(args[1], out tempRadius2))
                         {
                             foreach (var nebula in Nebulae)
@@ -967,6 +1000,8 @@ namespace Jakaria
 
         public override void UpdateAfterSimulation()
         {
+            Session.SunDirection = MyVisualScriptLogicProvider.GetSunDirection();
+
             if (MyAPIGateway.Session.IsServer)
             {
                 PlayerDamageCounter++;
@@ -979,22 +1014,35 @@ namespace Jakaria
 
             if (!MyAPIGateway.Utilities.IsDedicated)
             {
-                IonSpeed = Session.SunDirection * 20;
+                IonSpeed = Session.SunDirection * 100 * MyEngineConstants.PHYSICS_STEP_SIZE_IN_SECONDS;
+                CometSpeed = Vector3.Forward * 600 * MyEngineConstants.PHYSICS_STEP_SIZE_IN_SECONDS;
+                DustSpeed = Vector3.Right * 10 * MyEngineConstants.PHYSICS_STEP_SIZE_IN_SECONDS;
 
                 if (MyAPIGateway.Session?.Player != null)
                 {
                     Session.PlayerPosition = MyAPIGateway.Session.Player?.Character?.GetHeadMatrix(false).Translation ?? Session.CameraPosition;
-
-                    Session.SunDirection = MyVisualScriptLogicProvider.GetSunDirection();
                 }
 
                 if (Session.ClosestNebula != null)
                 {
-                    if (Session.ClosestSpaceWeather != null)
+                    if (Session.ClosestSpaceWeather?.Builder != null)
                     {
                         if (Session.ClosestSpaceWeather.Builder.RenderIons || RenderIonsOverride == true)
                         {
-                            Ions.Add(new Ion(Session.CameraPosition + (MyUtils.GetRandomVector3Normalized() * MyUtils.GetRandomFloat(1, 200)), 25));
+                            if (Ions.Count < 64 && Session.ClosestPlanet == null)
+                                Ions.Add(new SimpleParticle(Session.CameraPosition + (MyUtils.GetRandomVector3() * MyUtils.GetRandomFloat(1, 200)), 25));
+                        }
+
+                        /*if (Session.ClosestSpaceWeather.Builder.RenderComets || RenderCometsOverride == true)
+                        {
+                            if (Comets.Count < 64)
+                                Comets.Add(new SimpleParticle(Session.CameraPosition + (MyUtils.GetRandomVector3() * MyUtils.GetRandomFloat(2000, 5000)), 64));
+                        }*/ //TODO
+
+                        if (Session.ClosestSpaceWeather.Builder.DustAmount > 0 || RenderDustOverride != 0)
+                        {
+                            if (Dust.Count < ((RenderDustOverride != null) ? RenderDustOverride : DustAmount) && Session.ClosestPlanet == null)
+                                Dust.Add(new SimpleParticle(Session.CameraPosition + (MyUtils.GetRandomVector3() * MyUtils.GetRandomFloat(5, 50)), 100));
                         }
 
                         if (Session.ClosestSpaceWeather.Builder?.AmbientSoundPair != null)
@@ -1032,7 +1080,7 @@ namespace Jakaria
                 if (Ions != null)
                     for (int i = Ions.Count - 1; i >= 0; i--)
                     {
-                        Ion Ion = Ions[i];
+                        SimpleParticle Ion = Ions[i];
 
                         if (Ion == null || Ion.Life <= 0)
                         {
@@ -1042,6 +1090,34 @@ namespace Jakaria
 
                         Ion.Life--;
                         Ion.Position -= IonSpeed;
+                    }
+                if (Comets != null)
+                    for (int i = Comets.Count - 1; i >= 0; i--)
+                    {
+                        SimpleParticle Comet = Comets[i];
+
+                        if (Comet == null || Comet.Life <= 0)
+                        {
+                            Comets.RemoveAtFast(i);
+                            continue;
+                        }
+
+                        Comet.Life--;
+                        Comet.Position -= CometSpeed;
+                    }
+                if (Dust != null)
+                    for (int i = Dust.Count - 1; i >= 0; i--)
+                    {
+                        SimpleParticle dust = Dust[i];
+
+                        if (dust == null || dust.Life <= 0)
+                        {
+                            Dust.RemoveAtFast(i);
+                            continue;
+                        }
+
+                        dust.Life--;
+                        dust.Position -= DustSpeed;
                     }
             }
 
@@ -1087,6 +1163,7 @@ namespace Jakaria
             Session.CameraPosition = MyAPIGateway.Session.Camera.WorldMatrix.Translation;
             Session.CameraRotation = MyAPIGateway.Session.Camera.WorldMatrix.Forward;
 
+            Session.ClosestPlanet = MyGamePruningStructure.GetClosestPlanet(Session.CameraPosition);
             Session.ClosestNebula = GetClosestNebula(Session.CameraPosition);
             Session.ClosestSpaceWeather = Session.ClosestNebula?.GetClosestWeather(Session.CameraPosition);
             Session.InsideNebulaBounding = false;
@@ -1124,10 +1201,22 @@ namespace Jakaria
 
             if (Session.ClosestSpaceWeather != null)
             {
-                Vector4 IonColor = Vector4.One * 0.025f;
+                Vector4 IonColor = Vector4.One * 0.04f;
                 foreach (var Ion in Ions)
                 {
-                    MyTransparentGeometry.AddLineBillboard(NebulaData.LightningMaterial, IonColor, Ion.Position, Session.SunDirection, 100, 10);
+                    MyTransparentGeometry.AddLineBillboard(NebulaData.FlareMaterial, IonColor * ((25f - Ion.Life) / 25f), Ion.Position, Session.SunDirection, 100, 10);
+                }
+
+                foreach (var Comet in Comets)
+                {
+                    Vector4 Color = Vector4.One * (1f - (Math.Abs(Comet.Life - 250f) / 250f));
+                    MyTransparentGeometry.AddLineBillboard(NebulaData.DebugMaterial, Color, Comet.Position, Vector3.Normalize(CometSpeed), 100, 25);
+                }
+
+                Vector4 DustColor = Vector4.One * 0.75f;
+                foreach (var dust in Dust)
+                {
+                    MyTransparentGeometry.AddPointBillboard(NebulaData.FlareMaterial, DustColor, dust.Position, 0.05f, 0);
                 }
 
                 for (int i = 0; i < (RadiationOverride == null ? RadiationPixelsAmount : RadiationOverride); i++)
@@ -1245,7 +1334,19 @@ namespace Jakaria
 
         public string GetRandomWeather()
         {
-            return WeatherBuilders.Keys.ElementAt(MyUtils.GetRandomInt(0, WeatherBuilders.Count));
+            return WeatherRandomizer[MyUtils.GetRandomInt(0, WeatherBuilders.Count)];
+        }
+
+        public bool GetRandomWeather(out string weather)
+        {
+            if (WeatherRandomizer.Count > 0)
+            {
+                weather = WeatherRandomizer[MyUtils.GetRandomInt(0, WeatherBuilders.Count)];
+                return true;
+            }
+
+            weather = null;
+            return false;
         }
 
         [ProtoContract]

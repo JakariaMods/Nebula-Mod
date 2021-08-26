@@ -12,7 +12,7 @@ namespace Jakaria
 {
     public static class NebulaData
     {
-        public const string Version = "1.6EA";
+        public const string Version = "1.9";
         public const ushort ClientHandlerID = 50280;
         public const ushort ModHandlerID = 50281;
 
