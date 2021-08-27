@@ -47,6 +47,8 @@ namespace Jakaria
         List<MyEntity> ContainedEntities = new List<MyEntity>();
         [ProtoIgnore, XmlIgnore]
         public int NextEntityCollection = 0;
+        [ProtoIgnore, XmlIgnore]
+        public Vector3D Direction;
 
         public SpaceWeather(Vector3D position, Vector3D velocity, float radius, int maxLife, string weather)
         {
@@ -77,6 +79,8 @@ namespace Jakaria
 
             StartPosition = Position;
             EndPosition = StartPosition + (MaxLife * Velocity * MyEngineConstants.PHYSICS_STEP_SIZE_IN_SECONDS);
+
+            Direction = Vector3.IsZero(Velocity) ? Vector3.Right : Vector3.Normalize(Velocity);
         }
 
         public virtual void Simulate()
@@ -127,26 +131,26 @@ namespace Jakaria
                         }
                     }
 
-                    if (Builder.BlocksToDisable?.Length > 0)
-                        foreach (var Block in Grid.GetFatBlocks())
-                        {
-                            if (!Block.IsFunctional || Block.IsPreview)
-                                continue;
-
-                            if (Block is IMyFunctionalBlock)
+                    if (Grid.IsPowered)
+                        if (Builder.BlocksToDisable?.Length > 0)
+                            foreach (var Block in Grid.GetFatBlocks())
                             {
-                                if (Builder.BlocksToDisable.Contains(Block.BlockDefinition.Id.TypeId.ToString()))
-                                    (Block as IMyFunctionalBlock).Enabled = false;
-                            }
+                                if (!Block.IsFunctional || Block.IsPreview || !Block.IsWorking)
+                                    continue;
 
-                        }
+                                if (Block is IMyFunctionalBlock)
+                                {
+                                    if (Builder.BlocksToDisable.Contains(Block.BlockDefinition.Id.TypeId.ToString()))
+                                        (Block as IMyFunctionalBlock).Enabled = false;
+                                }
+                            }
                 }
 
                 if (Entity is IMyCharacter)
                 {
                     IMyCharacter Character = Entity as IMyCharacter;
 
-                    if(Vector3.IsZero(Character.Physics.Gravity))
+                    if (Vector3.IsZero(Character.Physics.Gravity))
                     {
                         if (Builder.DisableDampenersCharacter && Character.EnabledDamping)
                             Character.SwitchDamping();
@@ -157,7 +161,7 @@ namespace Jakaria
                         if (Builder.CharacterWindForce != 0)
                             Character.Physics.AddForce(VRage.Game.Components.MyPhysicsForceType.APPLY_WORLD_FORCE, NebulaMod.Session.SunDirection * -Builder.CharacterWindForce * MyEngineConstants.PHYSICS_STEP_SIZE_IN_SECONDS, null, null);
                     }
-                    
+
                     if (MyAPIGateway.Session.IsServer)
                     {
                         if (NebulaMod.Static.PlayerDamageCounter == 0 && (Builder.RadiationCharacterDamage > 0 || Builder.CharacterWindForce != 0))
@@ -283,8 +287,8 @@ namespace Jakaria
         [ProtoMember(20)]
         public bool RenderIons;
 
-        //[ProtoMember(21)]
-        //public bool RenderComets; //TODO
+        [ProtoMember(21)]
+        public bool RenderComets;
 
         [ProtoMember(25)]
         public int AmbientRadiationAmount;

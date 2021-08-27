@@ -103,7 +103,7 @@ namespace Jakaria
 
             WeatherBuilder = WeatherBuilders["RadiationStorm"] = new WeatherBuilder();
             WeatherBuilder.Name = "RadiationStorm";
-            WeatherBuilder.RadiationCharacterDamage = 5;
+            WeatherBuilder.RadiationCharacterDamage = 3;
             WeatherBuilder.AmbientSound = "JGeigerAmbient";
             WeatherBuilder.HudWarning = "Radiation Storm Inbound, Seek Shelter Immediately";
             WeatherBuilder.AmbientRadiationAmount = 5;
@@ -133,6 +133,14 @@ namespace Jakaria
             WeatherBuilder.AmbientSound = "JWindAmbient";
             WeatherBuilder.HudWarning = "Dust Storm Inbound, Expect Added Resistance";
             WeatherBuilder.Weight = 2;
+            WeatherBuilder.Init();
+
+            WeatherBuilder = WeatherBuilders["CometStorm"] = new WeatherBuilder();
+            WeatherBuilder.Name = "CometStorm";
+            WeatherBuilder.RenderComets = true;
+            WeatherBuilder.AmbientSound = "JWindAmbient";
+            WeatherBuilder.HudWarning = "Comet Storm Inbound, No Danger Detected";
+            WeatherBuilder.Weight = 3;
             WeatherBuilder.Init();
 
             JakUtils.ShowMessage(NebulaTexts.NebulaModVersion.Replace("{0}", NebulaData.Version));
@@ -327,9 +335,9 @@ namespace Jakaria
                         JakUtils.ShowMessage(NebulaTexts.NoPermissions);
                         break;
                     }
-
+                    
                     IHitInfo Hit;
-                    if (MyAPIGateway.Physics.CastRay(Session.CameraPosition, Session.CameraPosition + (Session.CameraRotation * 1000), out Hit))
+                    if (MyAPIGateway.Physics.CastRay(Session.CameraPosition + Session.CameraRotation, Session.CameraPosition + (Session.CameraRotation * 1000), out Hit))
                     {
                         Lightnings.Add(new Lightning(Hit.Position, Hit.Normal, "LightningStorm"));
                     }
@@ -1014,9 +1022,6 @@ namespace Jakaria
 
             if (!MyAPIGateway.Utilities.IsDedicated)
             {
-                IonSpeed = Session.SunDirection * 100 * MyEngineConstants.PHYSICS_STEP_SIZE_IN_SECONDS;
-                CometSpeed = Vector3.Forward * 600 * MyEngineConstants.PHYSICS_STEP_SIZE_IN_SECONDS;
-                DustSpeed = Vector3.Right * 10 * MyEngineConstants.PHYSICS_STEP_SIZE_IN_SECONDS;
 
                 if (MyAPIGateway.Session?.Player != null)
                 {
@@ -1027,17 +1032,21 @@ namespace Jakaria
                 {
                     if (Session.ClosestSpaceWeather?.Builder != null)
                     {
+                        IonSpeed = Session.SunDirection * 100 * MyEngineConstants.PHYSICS_STEP_SIZE_IN_SECONDS;
+                        CometSpeed = Session.ClosestSpaceWeather.Direction * 600 * MyEngineConstants.PHYSICS_STEP_SIZE_IN_SECONDS;
+                        DustSpeed = Session.ClosestSpaceWeather.Direction * 10 * MyEngineConstants.PHYSICS_STEP_SIZE_IN_SECONDS;
+
                         if (Session.ClosestSpaceWeather.Builder.RenderIons || RenderIonsOverride == true)
                         {
                             if (Ions.Count < 64 && Session.ClosestPlanet == null)
                                 Ions.Add(new SimpleParticle(Session.CameraPosition + (MyUtils.GetRandomVector3() * MyUtils.GetRandomFloat(1, 200)), 25));
                         }
 
-                        /*if (Session.ClosestSpaceWeather.Builder.RenderComets || RenderCometsOverride == true)
+                        if (Session.ClosestSpaceWeather.Builder.RenderComets || RenderCometsOverride == true)
                         {
-                            if (Comets.Count < 64)
-                                Comets.Add(new SimpleParticle(Session.CameraPosition + (MyUtils.GetRandomVector3() * MyUtils.GetRandomFloat(2000, 5000)), 64));
-                        }*/ //TODO
+                            if (Comets.Count < 256)
+                                Comets.Add(new SimpleParticle(Session.CameraPosition + (MyUtils.GetRandomVector3() * MyUtils.GetRandomFloat(2000, 3000)) + (CometSpeed * 128), 256));
+                        }
 
                         if (Session.ClosestSpaceWeather.Builder.DustAmount > 0 || RenderDustOverride != 0)
                         {
@@ -1209,8 +1218,7 @@ namespace Jakaria
 
                 foreach (var Comet in Comets)
                 {
-                    Vector4 Color = Vector4.One * (1f - (Math.Abs(Comet.Life - 250f) / 250f));
-                    MyTransparentGeometry.AddLineBillboard(NebulaData.DebugMaterial, Color, Comet.Position, Vector3.Normalize(CometSpeed), 100, 25);
+                    MyTransparentGeometry.AddLineBillboard(NebulaData.CometMaterial, NebulaData.CometColor * (1f - (Math.Abs(Comet.Life - 128f) / 128f)), Comet.Position, Session.ClosestSpaceWeather.Direction, 100, 6.25f);
                 }
 
                 Vector4 DustColor = Vector4.One * 0.75f;

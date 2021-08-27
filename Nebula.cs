@@ -124,7 +124,7 @@ namespace Jakaria
 
             if (MyAPIGateway.Session.IsServer)
                 NebulaMod.Static.SyncToClients(NebulaPacketType.Nebulae);
-            else
+            else if (MyAPIGateway.Session.HasCreativeRights)
                 NebulaMod.Static.SyncToServer(NebulaPacketType.Nebulae);
 
             return true;

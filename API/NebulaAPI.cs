@@ -239,8 +239,8 @@ namespace Jakaria.API
             [ProtoMember(20)]
             public bool RenderIons;
 
-            //[ProtoMember(21)]
-            //public bool RenderComets; //TODO
+            [ProtoMember(21)]
+            public bool RenderComets;
 
             [ProtoMember(25)]
             public int AmbientRadiationAmount;

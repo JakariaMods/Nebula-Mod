@@ -117,7 +117,10 @@ namespace Jakaria
 
                 if (MyAPIGateway.Session.IsServer)
                 {
-                    MyExplosionInfo ExplosionInfo = new MyExplosionInfo(50, 5, new BoundingSphereD(Parts[0], 1), MyExplosionTypeEnum.CUSTOM, true);
+                    MyExplosionInfo ExplosionInfo = new MyExplosionInfo(50, 300, new BoundingSphereD(Parts[0], 1), MyExplosionTypeEnum.CUSTOM, true);
+                    ExplosionInfo.KeepAffectedBlocks = true;
+                    ExplosionInfo.AffectVoxels = false;
+                    ExplosionInfo.CreateParticleEffect = true;
                     MyExplosions.AddExplosion(ref ExplosionInfo);
                 }
             }
@@ -166,11 +169,12 @@ namespace Jakaria
             float ratio = (1f - JakUtils.EaseOutBounce(Life / (float)Builder.MaxLife));
             Vector4 color = Builder.Color * ratio;
             color.W *= ratio;
-
+            
             for (int i = 1; i < Parts.Length; i++)
             {
                 MySimpleObjectDraw.DrawLine(Parts[i - 1], Parts[i], NebulaData.LightningMaterial, ref color, Builder.BoltRadius, BlendTypeEnum.LDR);
-                MyTransparentGeometry.AddPointBillboard(NebulaData.FlareMaterial, color * 0.015f, Parts[i - 1], Builder.BoltRadius * 250, 0);
+                MyTransparentGeometry.AddPointBillboard(NebulaData.FlareMaterial, color * 0.015f, Parts[i - 1], Builder.BoltRadius * 250 * NebulaData.FlareIntensity, 0);
+
             }
         }
 

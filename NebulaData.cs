@@ -1,4 +1,5 @@
 ﻿using Sandbox.Game.Entities;
+using Sandbox.ModAPI;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,16 +13,17 @@ namespace Jakaria
 {
     public static class NebulaData
     {
-        public const string Version = "1.9";
+        public const string Version = "1.10";
         public const ushort ClientHandlerID = 50280;
         public const ushort ModHandlerID = 50281;
 
         public static readonly Vector4 ShadowColor = new Vector4(1f, 1f, 1f, 0.3f);
         public static readonly Vector4 WhiteColor = Vector4.One;
-
+        public static readonly Vector4 CometColor = new Vector4(0.93f * 2, 0.24f * 2, 0.35f * 2, 0.1f);
         public static readonly MyStringId LightningMaterial = MyStringId.GetOrCompute("WeaponLaserIgnoreDepth");
         public static readonly MyStringId DebugMaterial = MyStringId.GetOrCompute("Square");
         public static readonly MyStringId FlareMaterial = MyStringId.GetOrCompute("particle_glare_alpha");
+        public static readonly MyStringId CometMaterial = MyStringId.GetOrCompute("Comet");
 
         public static readonly MyStringId[] ShadowTextures =
         {
@@ -46,5 +48,7 @@ namespace Jakaria
         public static readonly MySoundPair GeigerSound = new MySoundPair("JGeiger");
         public static readonly MySoundPair GeigerAmbientSound = new MySoundPair("JGeigerAmbient");
         public static readonly MySoundPair IonInterferenceSound = new MySoundPair("JIonInterference");
+
+        public static readonly float FlareIntensity = MyAPIGateway.Session.Config == null ? 1 : MyAPIGateway.Session.Config.FlaresIntensity;
     }
 }
