@@ -87,12 +87,8 @@ namespace Jakaria
 
         public bool CreateWeatherDetailed(Vector3D position, string weather, Vector3D velocity, int maxLife, float radius)
         {
-            foreach (var Weather in SpaceWeathers)
-            {
-                double LineDistance = MyUtils.GetPointLineDistance(ref Weather.StartPosition, ref Weather.EndPosition, ref position);
-                if (LineDistance - radius < Weather.Radius)
-                    return false;
-            }
+            if (IsNearWeather(position))
+                return false;
 
             SpaceWeathers.Add(new SpaceWeather(position, velocity, radius, maxLife, weather));
 
@@ -106,16 +102,13 @@ namespace Jakaria
 
         public bool CreateWeather(Vector3D position, string weather, bool natural)
         {
+            if (IsNearWeather(position))
+                return false;
+
             float radius = (Radius * 0.1f) * 100;
             int lifeTime = MyUtils.GetRandomInt(MinWeatherLength, MaxWeatherLength);
             float speed = radius / (lifeTime / 60f);
             Vector3D direction = MyUtils.GetRandomVector3Normalized();
-            foreach (var Weather in SpaceWeathers)
-            {
-                double LineDistance = MyUtils.GetPointLineDistance(ref Weather.StartPosition, ref Weather.EndPosition, ref position);
-                if (LineDistance - radius < Weather.Radius || Vector3D.Distance(Weather.StartPosition, position) < radius)
-                    return false;
-            }
 
             if (natural)
                 SpaceWeathers.Add(new SpaceWeather(position - (direction * radius), direction * speed, radius, lifeTime, weather));
@@ -128,6 +121,18 @@ namespace Jakaria
                 NebulaMod.Static.SyncToServer(NebulaPacketType.Nebulae);
 
             return true;
+        }
+
+        public bool IsNearWeather(Vector3D position)
+        {
+            foreach (var Weather in SpaceWeathers)
+            {
+                double LineDistance = MyUtils.GetPointLineDistance(ref Weather.StartPosition, ref Weather.EndPosition, ref position);
+                if (LineDistance < Weather.Radius || Vector3D.Distance(Weather.StartPosition, position) < Weather.Radius)
+                    return true;
+            }
+
+            return false;
         }
 
         public void Simulate()
@@ -143,8 +148,12 @@ namespace Jakaria
                         NextWeather = MyUtils.GetRandomInt(MinWeatherFrequency, MaxWeatherFrequency);
                         foreach (var Player in NebulaMod.Static.Players)
                         {
-                            if (IsInsideNebulaBounding(Player.GetPosition()))
-                                CreateRandomWeather(Player.GetPosition());
+                            if (Player.IsBot)
+                                continue;
+
+                            Vector3D Position = Player.GetPosition();
+                            if (IsInsideNebulaBounding(Position) && IsInsideNebula(Position))
+                                CreateRandomWeather(Position);
                         }
                     }
                 }

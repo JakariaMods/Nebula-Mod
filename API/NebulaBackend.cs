@@ -32,7 +32,33 @@ namespace Jakaria.API
             ["ForceRenderRadiation"] = new Action<int?>(ForceRenderRadiation),
             ["ForceRenderIons"] = new Action<bool?>(ForceRenderIons),
             ["RunCommand"] = new Action<string>(RunCommand),
+
+            //5
+            ["ForceRenderComets"] = new Action<bool?>(ForceRenderComets),
+            ["GetRandomWeather"] = new Func<string>(GetRandomWeather),
+            ["IsNearWeather"] = new Func<Vector3D, bool>(IsNearWeather),
         };
+
+        private static bool IsNearWeather(Vector3D arg)
+        {
+            foreach (var Nebula in NebulaMod.Static.Nebulae)
+            {
+                if (Nebula.IsNearWeather(arg))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static string GetRandomWeather()
+        {
+            return NebulaMod.Static.GetRandomWeather();
+        }
+
+        private static void ForceRenderComets(bool? obj)
+        {
+            NebulaMod.Static.RenderCometsOverride = obj;
+        }
 
         private static bool CreateWeatherDetailed(Vector3D arg1, string arg2, Vector3D arg3, int arg4, float arg5)
         {

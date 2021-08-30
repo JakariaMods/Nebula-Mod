@@ -335,7 +335,7 @@ namespace Jakaria
                         JakUtils.ShowMessage(NebulaTexts.NoPermissions);
                         break;
                     }
-                    
+
                     IHitInfo Hit;
                     if (MyAPIGateway.Physics.CastRay(Session.CameraPosition + Session.CameraRotation, Session.CameraPosition + (Session.CameraRotation * 1000), out Hit))
                     {
@@ -1010,6 +1010,7 @@ namespace Jakaria
         {
             Session.SunDirection = MyVisualScriptLogicProvider.GetSunDirection();
 
+            //Server
             if (MyAPIGateway.Session.IsServer)
             {
                 PlayerDamageCounter++;
@@ -1020,8 +1021,21 @@ namespace Jakaria
                 }
             }
 
+            //Client
             if (!MyAPIGateway.Utilities.IsDedicated)
             {
+                if ((LastTreeBuildPosition - Session.CameraPosition).AbsMax() > 50)
+                {
+                    BoundingSphereD sphere = new BoundingSphereD(MyAPIGateway.Session.Camera.Position, 30000);
+                    Asteroids.Clear();
+                    MyGamePruningStructure.GetAllVoxelMapsInSphere(ref sphere, Asteroids);
+
+                    LastTreeBuildPosition = Session.CameraPosition;
+                    foreach (var nebula in Nebulae)
+                    {
+                        nebula.BuildTree();
+                    }
+                }
 
                 if (MyAPIGateway.Session?.Player != null)
                 {
@@ -1182,19 +1196,6 @@ namespace Jakaria
 
             if (Nebulae != null)
             {
-                if ((LastTreeBuildPosition - Session.CameraPosition).AbsMax() > 50)
-                {
-                    BoundingSphereD sphere = new BoundingSphereD(MyAPIGateway.Session.Camera.Position, 30000);
-                    Asteroids.Clear();
-                    MyGamePruningStructure.GetAllVoxelMapsInSphere(ref sphere, Asteroids);
-
-                    LastTreeBuildPosition = Session.CameraPosition;
-                    foreach (var nebula in Nebulae)
-                    {
-                        nebula.BuildTree();
-                    }
-                }
-
                 foreach (var nebula in Nebulae)
                 {
                     nebula.Draw();
@@ -1267,16 +1268,24 @@ namespace Jakaria
                     //Asteroid Shadows
                     foreach (var asteroid in Asteroids)
                     {
-                        if (asteroid is MyPlanet || asteroid.StorageName?[0] == '|' || (asteroid.StorageName?[0] == 'P' && asteroid.StorageName?[1] == '(') || Session.CameraRotation.Dot(asteroid.PositionComp.GetPosition() - Session.CameraPosition) <= 0 || !Session.ClosestNebula.IsInsideNebula(asteroid.PositionComp.GetPosition()))
+                        if (asteroid is MyPlanet || Session.CameraRotation.Dot(asteroid.PositionComp.GetPosition() - Session.CameraPosition) <= 0 || !Session.ClosestNebula.IsInsideNebula(asteroid.PositionComp.GetPosition()))
                             continue;
 
-                        float tempRadius = asteroid.PositionComp.LocalVolume.Radius / 2;
+                        if (asteroid.StorageName.StartsWith("Ast"))
+                        {
+                            Vector3D position = asteroid.PositionComp.GetPosition();
 
-                        float tempDistance = Vector3.Distance(Session.CameraPosition, asteroid.PositionComp.GetPosition());
-                        if (tempDistance - tempRadius > tempRadius)
-                            MyTransparentGeometry.AddLineBillboard(NebulaData.ShadowTextures[0], tempShadowColor, asteroid.PositionComp.GetPosition() + (Session.SunDirection * tempRadius), -Session.SunDirection, tempRadius * 8, tempRadius, BlendTypeEnum.LDR);
-                        else
-                            MyTransparentGeometry.AddLineBillboard(NebulaData.ShadowTextures[0], new Vector4(NebulaData.ShadowColor.X, NebulaData.ShadowColor.Y, NebulaData.ShadowColor.Z, NebulaData.ShadowColor.W * (Math.Min(tempDistance - tempRadius, tempRadius) / tempRadius)), asteroid.PositionComp.GetPosition() + (Session.SunDirection * tempRadius), -Session.SunDirection, tempRadius * 8, tempRadius, BlendTypeEnum.LDR);
+                            //if (asteroid.GetMaterialAt(ref position) != null)
+                            //{
+                            float tempRadius = asteroid.PositionComp.LocalVolume.Radius / 2;
+
+                            float tempDistance = Vector3.Distance(Session.CameraPosition, position);
+                            if (tempDistance - (tempRadius * 2) > tempRadius)
+                                MyTransparentGeometry.AddLineBillboard(NebulaData.ShadowTextures[0], tempShadowColor, position + (Session.SunDirection * tempRadius), -Session.SunDirection, tempRadius * 8, tempRadius, BlendTypeEnum.LDR);
+                            else
+                                MyTransparentGeometry.AddLineBillboard(NebulaData.ShadowTextures[0], new Vector4(NebulaData.ShadowColor.X, NebulaData.ShadowColor.Y, NebulaData.ShadowColor.Z, NebulaData.ShadowColor.W * (Math.Min(tempDistance - (tempRadius * 2), tempRadius) / tempRadius)), position + (Session.SunDirection * tempRadius), -Session.SunDirection, tempRadius * 8, tempRadius, BlendTypeEnum.LDR);
+                            //}
+                        }
                     }
                 }
             }
@@ -1299,10 +1308,10 @@ namespace Jakaria
                         ShadowLength = 2;
 
                     float tempDistance = Vector3.Distance(Session.CameraPosition, planet.PositionComp.GetPosition());
-                    if (tempDistance - planet.MinimumRadius > planet.MinimumRadius)
+                    if (tempDistance - planet.MaximumRadius > planet.MinimumRadius)
                         MyTransparentGeometry.AddLineBillboard(NebulaData.ShadowTextures[ShadowLength], tempShadowColor, planet.PositionComp.GetPosition() + (Session.SunDirection * planet.MinimumRadius), -Session.SunDirection, planet.MinimumRadius * 8, planet.MinimumRadius, BlendTypeEnum.LDR);
                     else
-                        MyTransparentGeometry.AddLineBillboard(NebulaData.ShadowTextures[ShadowLength], new Vector4(NebulaData.ShadowColor.X, NebulaData.ShadowColor.Y, NebulaData.ShadowColor.Z, NebulaData.ShadowColor.W * (Math.Min(tempDistance - planet.MinimumRadius, planet.MinimumRadius) / planet.MinimumRadius)), planet.PositionComp.GetPosition() + (Session.SunDirection * planet.MinimumRadius), -Session.SunDirection, planet.MinimumRadius * 8, planet.MinimumRadius, BlendTypeEnum.LDR);
+                        MyTransparentGeometry.AddLineBillboard(NebulaData.ShadowTextures[ShadowLength], new Vector4(NebulaData.ShadowColor.X, NebulaData.ShadowColor.Y, NebulaData.ShadowColor.Z, NebulaData.ShadowColor.W * (Math.Min(tempDistance - planet.MaximumRadius, planet.MinimumRadius) / planet.MinimumRadius)), planet.PositionComp.GetPosition() + (Session.SunDirection * planet.MinimumRadius), -Session.SunDirection, planet.MinimumRadius * 8, planet.MinimumRadius, BlendTypeEnum.LDR);
                 }
             }
             if (Session.PreviousInsideNebulaState != Session.InsideNebulaBounding)

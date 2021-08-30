@@ -41,6 +41,7 @@ namespace Jakaria.API
                 DisableDampenersCharacter  = true,
                 DisableDampenersGrid = true,
                 RenderIons = true,
+                RenderComets = true,
                 AmbientRadiationAmount = 5,
                 DamageRadiationAmount = 200,
                 BlocksToDisable = new string[]
@@ -62,7 +63,7 @@ namespace Jakaria.API
         public static string ModName = MyAPIGateway.Utilities.GamePaths.ModScopeName.Split('_')[1];
         public const ushort ModHandlerID = 13377;
         public const ushort ModHandlerIDWeather = 13378;
-        public const int ModAPIVersion = 4;
+        public const int ModAPIVersion = 5;
         public bool Registered { get; private set; } = false;
 
         private static Dictionary<string, Delegate> ModAPIMethods;
@@ -80,6 +81,10 @@ namespace Jakaria.API
         private static Action<int?> _ForceRenderRadiation;
         private static Action<bool?> _ForceRenderIons;
         private static Action<string> _RunCommand;
+
+        private static Action<bool?> _ForceRenderComets;
+        private static Func<string> _GetRandomWeather;
+        private static Func<Vector3D, bool> _IsNearWeather;
 
         /// <summary>
         /// Returns true if the version is compatibile with the API Backend, this is automatically called
@@ -142,9 +147,24 @@ namespace Jakaria.API
         public static void ForceRenderIons(bool? Enabled) => _ForceRenderIons?.Invoke(Enabled);
 
         /// <summary>
+        /// Forces Comets to render, set null to reset
+        /// </summary>
+        public static void ForceRenderComets(bool? Enabled) => _ForceRenderComets?.Invoke(Enabled);
+
+        /// <summary>
+        /// Returns a random weather using the weighted randomizer
+        /// </summary>
+        public static string GetRandomWeather() => _GetRandomWeather?.Invoke();
+
+        /// <summary>
         /// Simulates the player running a command
         /// </summary>
         public static void RunCommand(string Command) => _RunCommand?.Invoke(Command);
+
+        /// <summary>
+        /// Returns true if a weather is occuring or incoming at the position
+        /// </summary>
+        public static bool IsNearWeather(Vector3D Position) => _IsNearWeather?.Invoke(Position) ?? false;
 
         public override void LoadData()
         {
@@ -187,6 +207,11 @@ namespace Jakaria.API
                     _ForceRenderRadiation = (Action<int?>)ModAPIMethods["ForceRenderRadiation"];
                     _ForceRenderIons = (Action<bool?>)ModAPIMethods["ForceRenderIons"];
                     _RunCommand = (Action<string>)ModAPIMethods["RunCommand"];
+
+                    //5
+                    _ForceRenderComets = (Action<bool?>)ModAPIMethods["ForceRenderComets"];
+                    _GetRandomWeather = (Func<string>)ModAPIMethods["GetRandomWeather"];
+                    _IsNearWeather = (Func<Vector3D, bool>)ModAPIMethods["IsNearWeather"];
                 }
                 catch (Exception e)
                 {
