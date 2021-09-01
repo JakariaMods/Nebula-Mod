@@ -525,7 +525,7 @@ namespace Jakaria
                     {
                         if (int.TryParse(args[1], out tempMinFrequency))
                         {
-                            if (int.TryParse(args[1], out tempMaxFrequency))
+                            if (int.TryParse(args[2], out tempMaxFrequency))
                             {
                                 foreach (var nebula in Nebulae)
                                 {
