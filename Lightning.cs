@@ -1,4 +1,5 @@
-﻿using Jakaria.Utils;
+﻿using Jakaria.Definitions;
+using Jakaria.Utils;
 using ProtoBuf;
 using Sandbox.Game;
 using Sandbox.Game.Entities;
@@ -40,10 +41,10 @@ namespace Jakaria
         public MyEntity3DSoundEmitter SoundEmitter;
 
         [ProtoIgnore]
-        public LightningBuilder Builder;
+        public NebulaLightningDefinition Definition;
 
         [ProtoMember(15)]
-        public string BuilderId;
+        public string SubtypeId;
 
         [ProtoMember(20)]
         public float Length;
@@ -55,17 +56,17 @@ namespace Jakaria
 
         public void Init()
         {
-            Builder = NebulaMod.Static.WeatherBuilders[BuilderId].Lightning;
+            Definition = NebulaData.WeatherDefinitions[SubtypeId].Lightning;
             Parts = new Vector3D[50];
 
             if (!MyAPIGateway.Utilities.IsDedicated)
             {
                 Parts[0] = Position;
 
-                Length *= 1f / Builder.BoltParts;
-                for (int i = 1; i < Builder.BoltParts; i++)
+                Length *= 1f / Definition.BoltParts;
+                for (int i = 1; i < Definition.BoltParts; i++)
                 {
-                    Parts[i] = Parts[i - 1] + Direction * (Length * (i / (float)Builder.BoltParts)) + (MyUtils.GetRandomPerpendicularVector(ref Direction) * MyUtils.GetRandomFloat(0, Builder.BoltVariation));
+                    Parts[i] = Parts[i - 1] + Direction * (Length * (i / (float)Definition.BoltParts)) + (MyUtils.GetRandomPerpendicularVector(ref Direction) * MyUtils.GetRandomFloat(0, Definition.BoltVariation));
                 }
             }
 
@@ -74,7 +75,7 @@ namespace Jakaria
                 if (MyGamePruningStructure.GetClosestPlanet(Position) != null)
                     return;
 
-                BoundingSphereD Sphere = new BoundingSphereD(Position, Builder.BoltVariation);
+                BoundingSphereD Sphere = new BoundingSphereD(Position, Definition.BoltVariation);
 
                 List<MyEntity> Result = new List<MyEntity>();
                 MyGamePruningStructure.GetAllTopMostEntitiesInSphere(ref Sphere, Result, MyEntityQueryType.Dynamic);
@@ -151,7 +152,7 @@ namespace Jakaria
         {
             Position = position;
             Direction = direction;
-            BuilderId = builderId;
+            SubtypeId = builderId;
             Length = length;
 
             Init();
@@ -166,14 +167,14 @@ namespace Jakaria
 
         public void Draw()
         {
-            float ratio = (1f - JakUtils.EaseOutBounce(Life / (float)Builder.MaxLife));
-            Vector4 color = Builder.Color * ratio;
+            float ratio = (1f - JakUtils.EaseOutBounce(Life / (float)Definition.MaxLife));
+            Vector4 color = Definition.Color * ratio;
             color.W *= ratio;
             
             for (int i = 1; i < Parts.Length; i++)
             {
-                MySimpleObjectDraw.DrawLine(Parts[i - 1], Parts[i], NebulaData.LightningMaterial, ref color, Builder.BoltRadius, BlendTypeEnum.LDR);
-                MyTransparentGeometry.AddPointBillboard(NebulaData.FlareMaterial, color * 0.015f, Parts[i - 1], Builder.BoltRadius * 250 * NebulaData.FlareIntensity, 0);
+                MySimpleObjectDraw.DrawLine(Parts[i - 1], Parts[i], NebulaData.LightningMaterial, ref color, Definition.BoltRadius, BlendTypeEnum.LDR);
+                MyTransparentGeometry.AddPointBillboard(NebulaData.FlareMaterial, color * 0.015f, Parts[i - 1], Definition.BoltRadius * 250 * NebulaData.FlareIntensity, 0);
 
             }
         }

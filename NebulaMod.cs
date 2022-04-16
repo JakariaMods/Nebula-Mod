@@ -16,6 +16,9 @@ using Sandbox.Game.World;
 using Jakaria.API;
 using System.Linq;
 using ProtoBuf;
+using System.IO;
+using Jakaria.Definitions;
+using VRageRender;
 
 namespace Jakaria
 {
@@ -30,7 +33,6 @@ namespace Jakaria
 
         public static NebulaMod Static;
 
-        public Dictionary<string, WeatherBuilder> WeatherBuilders = new Dictionary<string, WeatherBuilder>();
         public List<string> WeatherRandomizer = new List<string>();
 
         public List<Lightning> Lightnings = new List<Lightning>();
@@ -41,7 +43,7 @@ namespace Jakaria
         public MyEntity3DSoundEmitter DamageSound = new MyEntity3DSoundEmitter(null);
 
         public List<SimpleParticle> Ions = new List<SimpleParticle>();
-        public List<SimpleParticle> Comets = new List<SimpleParticle>();
+        public List<CometParticle> Comets = new List<CometParticle>();
         public List<SimpleParticle> Dust = new List<SimpleParticle>();
 
         public int RadiationPixelsAmount = 0;
@@ -54,6 +56,7 @@ namespace Jakaria
         public Vector3D IonSpeed = Vector3D.Forward;
         public Vector3D CometSpeed = Vector3D.Forward;
         public Vector3D DustSpeed = Vector3D.Right;
+        public List<MyBillboard> Billboards = new List<MyBillboard>();
 
         public static class Session
         {
@@ -84,66 +87,42 @@ namespace Jakaria
 
         public override void Init(MyObjectBuilder_SessionComponent sessionComponent)
         {
-            WeatherBuilder WeatherBuilder;
-            LightningBuilder LightningBuilder;
+            JakUtils.ModName = MyAPIGateway.Utilities.GamePaths.ModScopeName.Split('_')[1];
 
-            WeatherBuilder = WeatherBuilders["LightningStorm"] = new WeatherBuilder();
-            WeatherBuilder.Name = "LightningStorm";
-            WeatherBuilder.MinLightningFrequency = 5;
-            WeatherBuilder.MaxLightningFrequency = 30;
-            WeatherBuilder.HudWarning = "Lightning Storm Inbound";
-            WeatherBuilder.Weight = 2;
-            LightningBuilder = WeatherBuilder.Lightning = new LightningBuilder();
-            LightningBuilder.MaxLife = 25;
-            LightningBuilder.BoltParts = 50;
-            LightningBuilder.BoltVariation = 100;
-            LightningBuilder.BoltRadius = 5;
-            LightningBuilder.Color = Vector4.One * 3;
-            WeatherBuilder.Init();
-
-            WeatherBuilder = WeatherBuilders["RadiationStorm"] = new WeatherBuilder();
-            WeatherBuilder.Name = "RadiationStorm";
-            WeatherBuilder.RadiationCharacterDamage = 3;
-            WeatherBuilder.AmbientSound = "JGeigerAmbient";
-            WeatherBuilder.HudWarning = "Radiation Storm Inbound, Seek Shelter Immediately";
-            WeatherBuilder.AmbientRadiationAmount = 5;
-            WeatherBuilder.DamageRadiationAmount = 100;
-            WeatherBuilder.Weight = 2;
-            WeatherBuilder.Init();
-
-            WeatherBuilder = WeatherBuilders["IonStorm"] = new WeatherBuilder();
-            WeatherBuilder.Name = "IonStorm";
-            WeatherBuilder.DisableDampenersCharacter = true;
-            WeatherBuilder.DisableDampenersGrid = true;
-            WeatherBuilder.RenderIons = true;
-            WeatherBuilder.AmbientSound = "JIonInterference";
-            WeatherBuilder.BlocksToDisable = new string[]
+            foreach (var Mod in MyAPIGateway.Session.Mods)
             {
-            "MyObjectBuilder_JumpDrive"
-            };
-            WeatherBuilder.HudWarning = "Ion Storm Inbound, Electronics May Fail";
-            WeatherBuilder.Weight = 1;
-            WeatherBuilder.Init();
+                if (MyAPIGateway.Utilities.FileExistsInModLocation("Data/NebulaConfig.xml", Mod))
+                {
+                    TextReader Reader = MyAPIGateway.Utilities.ReadFileInModLocation("Data/NebulaConfig.xml", Mod);
+                    if (Reader != null)
+                    {
+                        string xml = Reader.ReadToEnd();
 
-            WeatherBuilder = WeatherBuilders["DustStorm"] = new WeatherBuilder();
-            WeatherBuilder.Name = "DustStorm";
-            WeatherBuilder.DustAmount = 256;
-            WeatherBuilder.GridDragForce = 75;
-            WeatherBuilder.CharacterDragForce = 5;
-            WeatherBuilder.AmbientSound = "JWindAmbient";
-            WeatherBuilder.HudWarning = "Dust Storm Inbound, Expect Added Resistance";
-            WeatherBuilder.Weight = 2;
-            WeatherBuilder.Init();
+                        if (xml.Length > 0)
+                        {
+                            NebulaModDefinintions NebulaModDefinition = MyAPIGateway.Utilities.SerializeFromXML<NebulaModDefinintions>(xml);
 
-            WeatherBuilder = WeatherBuilders["CometStorm"] = new WeatherBuilder();
-            WeatherBuilder.Name = "CometStorm";
-            WeatherBuilder.RenderComets = true;
-            WeatherBuilder.AmbientSound = "JWindAmbient";
-            WeatherBuilder.HudWarning = "Comet Storm Inbound, No Danger Detected";
-            WeatherBuilder.Weight = 3;
-            WeatherBuilder.Init();
+                            if (NebulaModDefinition.NebulaWeatherDefinitions != null)
+                                foreach (var WeatherDefinition in NebulaModDefinition.NebulaWeatherDefinitions)
+                                {
+                                    if (WeatherDefinition.SubtypeId == "")
+                                    {
+                                        JakUtils.WriteLog("Empty nebula weather definition, skipping...");
+                                        continue;
+                                    }
 
-            JakUtils.ShowMessage(NebulaTexts.NebulaModVersion.Replace("{0}", NebulaData.Version));
+                                    WeatherDefinition.Init();
+
+                                    NebulaData.WeatherDefinitions[WeatherDefinition.SubtypeId] = WeatherDefinition;
+                                    JakUtils.WriteLog("Loaded nebula weather definition '" + WeatherDefinition.SubtypeId + "'");
+                                }
+                            Reader.Dispose();
+                        }
+                    }
+                }
+            }
+            
+            JakUtils.ShowMessage(NebulaTexts.NebulaModVersion.Replace("{0}", NebulaData.Version + (NebulaData.EarlyAccess ? "EA" : "")));
 
             MyAPIGateway.Utilities.MessageEntered += Utilities_MessageEntered;
             MyVisualScriptLogicProvider.PlayerConnected += PlayerConnected;
@@ -158,7 +137,7 @@ namespace Jakaria
             });
 
             MyAPIGateway.Entities.OnEntityAdd += OnEntityAdd;
-
+            MyAPIGateway.Entities.OnEntityRemove += OnEntityRemove;
             entities.Clear();
         }
 
@@ -264,9 +243,14 @@ namespace Jakaria
 
         protected override void UnloadData()
         {
+            MyAPIGateway.Entities.OnEntityAdd -= OnEntityAdd;
+            MyAPIGateway.Entities.OnEntityRemove -= OnEntityRemove;
+
             MyAPIGateway.Utilities.MessageEntered -= Utilities_MessageEntered;
             MyVisualScriptLogicProvider.PlayerConnected -= PlayerConnected;
+
             MyAPIGateway.Multiplayer.UnregisterMessageHandler(NebulaData.ClientHandlerID, ClientHandler);
+
             NebulaBackend.UnloadData();
         }
 
@@ -358,7 +342,7 @@ namespace Jakaria
                     }
 
                     if (args.Length == 2)
-                        if (WeatherBuilders.ContainsKey(args[1]))
+                        if (NebulaData.WeatherDefinitions.ContainsKey(args[1]))
                         {
                             foreach (var nebula in Nebulae)
                             {
@@ -416,7 +400,7 @@ namespace Jakaria
                     if (Session.ClosestNebula != null)
                     {
                         string list = "";
-                        string[] keys = WeatherBuilders.Keys.ToArray();
+                        string[] keys = NebulaData.WeatherDefinitions.Keys.ToArray();
                         for (int i = 0; i < keys.Length; i++)
                         {
                             list = list + keys[i] + ((i < keys.Length - 1) ? ", " : ".");
@@ -427,8 +411,7 @@ namespace Jakaria
                     break;
                 case "nversion":
                     sendToOthers = false;
-
-                    JakUtils.ShowMessage(NebulaTexts.NebulaModVersion.Replace("{0}", NebulaData.Version));
+                    JakUtils.ShowMessage(NebulaTexts.NebulaModVersion.Replace("{0}", NebulaData.Version + (NebulaData.EarlyAccess ? "EA" : "")));
                     break;
 
                 case "ndebug":
@@ -469,8 +452,7 @@ namespace Jakaria
                             break;
                         }
 
-                    Nebulae.Add(new Nebula(Session.CameraPosition, MyUtils.GetClampInt(tempRadius, 100, 1500), MyUtils.GetRandomInt(int.MaxValue)));
-                    SyncToServer(NebulaPacketType.Nebulae);
+                    CreateNebula(Session.CameraPosition, tempRadius);
                     JakUtils.ShowMessage(NebulaTexts.NebulaCreate);
 
                     break;
@@ -627,7 +609,7 @@ namespace Jakaria
                             {
                                 if (nebula.IsInsideNebulaBounding(Session.CameraPosition))
                                 {
-                                    nebula.NoiseRatioCutoff = 1f - MyMath.Clamp(tempDensity, 0f, 1f);
+                                    nebula.Density = MyMath.Clamp(tempDensity, 0f, 1f);
                                     nebula.BuildTree();
                                 }
                             }
@@ -639,7 +621,7 @@ namespace Jakaria
                         else
                             JakUtils.ShowMessage(NebulaTexts.NoParseFloat.Replace("{0}", args[1]));
                     else
-                        JakUtils.ShowMessage(NebulaTexts.NebulaGetDensity.Replace("{0}", (1f - Session.ClosestNebula.NoiseRatioCutoff).ToString()));
+                        JakUtils.ShowMessage(NebulaTexts.NebulaGetDensity.Replace("{0}", (Session.ClosestNebula.Density).ToString()));
                     break;
 
                 case "nseed":
@@ -991,7 +973,89 @@ namespace Jakaria
                     SyncToServer(NebulaPacketType.Nebulae);
 
                     break;
+                case "nshadow":
+                    sendToOthers = false;
+
+                    if (!MyAPIGateway.Session.HasCreativeRights)
+                    {
+                        JakUtils.ShowMessage(NebulaTexts.NoPermissions);
+                        break;
+                    }
+
+                    if (Session.ClosestNebula == null)
+                    {
+                        JakUtils.ShowMessage(NebulaTexts.NoNebula);
+                        break;
+                    }
+
+                    ShadowDrawEnum shadowEnum;
+
+                    if (args.Length == 2)
+                        if (Enum.TryParse(args[1], out shadowEnum))
+                        {
+                            foreach (var nebula in Nebulae)
+                            {
+                                if (nebula.IsInsideNebulaBounding(Session.CameraPosition))
+                                {
+                                    nebula.DrawShadows = shadowEnum;
+                                }
+                            }
+
+                            JakUtils.ShowMessage(NebulaTexts.NebulaSetShadows.Replace("{0}", shadowEnum.ToString()));
+                            SyncToServer(NebulaPacketType.Nebulae);
+                        }
+                        else
+                            JakUtils.ShowMessage(NebulaTexts.NoParseEnum.Replace("{0}", args[1]));
+                    else
+                        JakUtils.ShowMessage(NebulaTexts.NebulaGetShadows.Replace("{0}", Session.ClosestNebula.DrawShadows.ToString()));
+
+                    break;
+                case "nintensity":
+                    sendToOthers = false;
+
+                    if (!MyAPIGateway.Session.HasCreativeRights)
+                    {
+                        JakUtils.ShowMessage(NebulaTexts.NoPermissions);
+                        break;
+                    }
+
+                    if (Session.ClosestNebula == null)
+                    {
+                        JakUtils.ShowMessage(NebulaTexts.NoNebula);
+                        break;
+                    }
+
+                    float tempIntensity;
+
+                    if (args.Length == 2)
+                        if (float.TryParse(args[1], out tempIntensity))
+                        {
+                            foreach (var nebula in Nebulae)
+                            {
+                                if (nebula.IsInsideNebulaBounding(Session.CameraPosition))
+                                {
+                                    nebula.NoiseMultiplier = Math.Max(tempIntensity, 0);
+                                    nebula.BuildTree();
+                                }
+                            }
+
+                            JakUtils.ShowMessage(NebulaTexts.NebulaSetIntensity.Replace("{0}", tempIntensity.ToString()));
+                            SyncToServer(NebulaPacketType.Nebulae);
+                        }
+                        else
+                            JakUtils.ShowMessage(NebulaTexts.NoParseFloat.Replace("{0}", args[1]));
+                    else
+                        JakUtils.ShowMessage(NebulaTexts.NebulaGetIntensity.Replace("{0}", Session.ClosestNebula.NoiseMultiplier.ToString()));
+
+                    break;
             }
+        }
+
+        public void CreateNebula(Vector3D position, int radius)
+        {
+            Nebulae.Add(new Nebula(position, MyUtils.GetClampInt(radius, 100, 1500), MyUtils.GetRandomInt(int.MaxValue)));
+
+            SyncToServer(NebulaPacketType.Nebulae);
         }
 
         public void CreateLightning(Vector3D position, string builderId)
@@ -1004,6 +1068,18 @@ namespace Jakaria
         {
             if (obj is MyPlanet)
                 Planets.Add(obj as MyPlanet);
+
+            if (obj is MyVoxelBase && obj.DisplayName?.StartsWith("Ast") == true)
+                Asteroids.Add(obj as MyVoxelBase);
+        }
+
+        private void OnEntityRemove(IMyEntity obj)
+        {
+            if (Planets.Contains(obj as MyPlanet))
+                Planets.Remove(obj as MyPlanet);
+
+            if (Asteroids.Contains(obj as MyVoxelBase))
+                Asteroids.Remove(obj as MyVoxelBase);
         }
 
         public override void UpdateAfterSimulation()
@@ -1026,10 +1102,6 @@ namespace Jakaria
             {
                 if ((LastTreeBuildPosition - Session.CameraPosition).AbsMax() > 50)
                 {
-                    BoundingSphereD sphere = new BoundingSphereD(MyAPIGateway.Session.Camera.Position, 30000);
-                    Asteroids.Clear();
-                    MyGamePruningStructure.GetAllVoxelMapsInSphere(ref sphere, Asteroids);
-
                     LastTreeBuildPosition = Session.CameraPosition;
                     foreach (var nebula in Nebulae)
                     {
@@ -1059,7 +1131,7 @@ namespace Jakaria
                         if (Session.ClosestSpaceWeather.Builder.RenderComets || RenderCometsOverride == true)
                         {
                             if (Comets.Count < 256)
-                                Comets.Add(new SimpleParticle(Session.CameraPosition + (MyUtils.GetRandomVector3() * MyUtils.GetRandomFloat(2000, 3000)) + (CometSpeed * 128), 256));
+                                Comets.Add(new CometParticle(Session.CameraPosition + (MyUtils.GetRandomVector3() * MyUtils.GetRandomFloat(2000, 3000)) + (CometSpeed * 128), 256, Session.ClosestSpaceWeather.Direction));
                         }
 
                         if (Session.ClosestSpaceWeather.Builder.DustAmount > 0 || RenderDustOverride != 0)
@@ -1084,7 +1156,7 @@ namespace Jakaria
                                 AmbientSound.PlaySound(Session.ClosestSpaceWeather.Builder.AmbientSoundPair, stopPrevious: true, alwaysHearOnRealistic: true, force2D: true);
                             }
 
-                            AmbientVolume = (AmbientVolume + ((1f - AmbientVolume) * 0.01f)) * Math.Min(1.5f - (Vector3.Distance(Session.CameraPosition, Session.ClosestSpaceWeather.Position) / Session.ClosestSpaceWeather.Radius), 1);
+                            AmbientVolume = (AmbientVolume + ((1f - AmbientVolume) * 0.01f)) * Math.Min(1.5f - (float)(Vector3D.Distance(Session.CameraPosition, Session.ClosestSpaceWeather.Position) / Session.ClosestSpaceWeather.Radius), 1);
                             AmbientSound.VolumeMultiplier = AmbientVolume;
                         }
                         else if (AmbientSound.IsPlaying)
@@ -1162,7 +1234,7 @@ namespace Jakaria
                         continue;
                     }
 
-                    if (Lightning.Builder == null)
+                    if (Lightning.Definition == null)
                         Lightning.Init();
 
                     Lightning.Simulate();
@@ -1183,152 +1255,173 @@ namespace Jakaria
 
         public override void Draw()
         {
-            Session.CameraPosition = MyAPIGateway.Session.Camera.WorldMatrix.Translation;
-            Session.CameraRotation = MyAPIGateway.Session.Camera.WorldMatrix.Forward;
-
-            Session.ClosestPlanet = MyGamePruningStructure.GetClosestPlanet(Session.CameraPosition);
-            Session.ClosestNebula = GetClosestNebula(Session.CameraPosition);
-            Session.ClosestSpaceWeather = Session.ClosestNebula?.GetClosestWeather(Session.CameraPosition);
-            Session.InsideNebulaBounding = false;
-            Session.NebulaDepthRatioRaw = 0;
-
-            Session.ClosestWeatherIntensity = MyAPIGateway.Session.WeatherEffects.GetWeatherIntensity(Session.CameraPosition);
-
-            if (Nebulae != null)
+            try
             {
-                foreach (var nebula in Nebulae)
-                {
-                    nebula.Draw();
-                }
-            }
+                if (MyAPIGateway.Session.Camera == null)
+                    return;
 
-            if (Lightnings != null)
-                foreach (var Lightning in Lightnings)
+                Session.CameraPosition = MyAPIGateway.Session.Camera.WorldMatrix.Translation;
+                Session.CameraRotation = MyAPIGateway.Session.Camera.WorldMatrix.Forward;
+
+                Session.ClosestPlanet = MyGamePruningStructure.GetClosestPlanet(Session.CameraPosition);
+                Session.ClosestNebula = GetClosestNebula(Session.CameraPosition);
+                Session.ClosestSpaceWeather = Session.ClosestNebula?.GetClosestWeather(Session.CameraPosition) ?? null;
+                Session.InsideNebulaBounding = false;
+                Session.NebulaDepthRatioRaw = 0;
+
+                Session.ClosestWeatherIntensity = MyAPIGateway.Session.WeatherEffects.GetWeatherIntensity(Session.CameraPosition);
+
+                Billboards.Clear();
+
+                if (!WaterAPI.Registered || !WaterAPI.IsUnderwater(Session.CameraPosition))
                 {
-                    if (Lightning.Builder != null)
-                        Lightning.Draw();
+                    if (Nebulae != null)
+                    {
+                        foreach (var nebula in Nebulae)
+                        {
+                            nebula.Draw();
+                        }
+                    }
                 }
 
-            if (Session.ClosestSpaceWeather != null)
-            {
-                Vector4 IonColor = Vector4.One * 0.04f;
-                foreach (var Ion in Ions)
-                {
-                    MyTransparentGeometry.AddLineBillboard(NebulaData.FlareMaterial, IonColor * ((25f - Ion.Life) / 25f), Ion.Position, Session.SunDirection, 100, 10);
-                }
+                MyTransparentGeometry.AddBillboards(Billboards, false);
 
-                foreach (var Comet in Comets)
-                {
-                    MyTransparentGeometry.AddLineBillboard(NebulaData.CometMaterial, NebulaData.CometColor * (1f - (Math.Abs(Comet.Life - 128f) / 128f)), Comet.Position, Session.ClosestSpaceWeather.Direction, 100, 6.25f);
-                }
+                if (Lightnings != null)
+                    foreach (var Lightning in Lightnings)
+                    {
+                        if (Lightning.Definition != null)
+                            Lightning.Draw();
+                    }
 
-                Vector4 DustColor = Vector4.One * 0.75f;
-                foreach (var dust in Dust)
-                {
-                    MyTransparentGeometry.AddPointBillboard(NebulaData.FlareMaterial, DustColor, dust.Position, 0.05f, 0);
-                }
+                if (Ions != null)
+                    foreach (var Ion in Ions)
+                    {
+                        MyTransparentGeometry.AddLineBillboard(NebulaData.FlareMaterial, NebulaData.IonColor * ((25f - Ion.Life) / 25f), Ion.Position, Session.SunDirection, 100, 10);
+                    }
+
+                if (Comets != null)
+                    foreach (var Comet in Comets)
+                    {
+                        MyTransparentGeometry.AddLineBillboard(NebulaData.CometMaterial, NebulaData.CometColor * (1f - (Math.Abs(Comet.Life - 128f) / 128f)), Comet.Position, Comet.Direction, 100, 6.25f);
+                    }
+
+                if (Dust != null)
+                    foreach (var dust in Dust)
+                    {
+                        MyTransparentGeometry.AddPointBillboard(NebulaData.FlareMaterial, NebulaData.DustColor, dust.Position, 0.05f, 0);
+                    }
 
                 for (int i = 0; i < (RadiationOverride == null ? RadiationPixelsAmount : RadiationOverride); i++)
                 {
                     MyTransparentGeometry.AddPointBillboard(NebulaData.FlareMaterial, Vector4.One, Session.CameraPosition + (MyUtils.GetRandomVector3() * MyUtils.GetRandomFloat(1, 5)), 0.01f, 0, blendType: BlendTypeEnum.AdditiveTop);
                 }
-            }
 
-            double tempDot = Math.Abs(Session.CameraRotation.Dot(Session.SunDirection));
-            Vector4 tempShadowColor = new Vector4(NebulaData.ShadowColor.X, NebulaData.ShadowColor.X, NebulaData.ShadowColor.X, (float)(NebulaData.ShadowColor.W * (1f - (Math.Max(tempDot - 0.95f, 0) / 0.05f))));
-
-            if (Session.ClosestNebula != null)
-            {
-                Session.InsideNebulaBounding = Session.ClosestNebula.IsInsideNebulaBounding(Session.CameraPosition);
-
-                Session.NebulaDepthRatioRaw = Session.ClosestNebula.GetDepthRatio(Session.CameraPosition);
-                if (Session.ClosestNebula.NoiseRatioCutoff != 0)
+                if (Session.ClosestNebula != null)
                 {
-                    Session.NebulaDepthRatio = MyMath.Clamp((Session.NebulaDepthRatioRaw - Session.ClosestNebula.NoiseRatioCutoff) / Session.ClosestNebula.NoiseRatioCutoff, 0, 1f);
-                }
+                    Session.InsideNebulaBounding = Session.ClosestNebula.IsInsideNebulaBounding(Session.CameraPosition);
 
-                if (Session.InsideNebulaBounding)
-                {
-                    if (Session.NebulaDepthRatioRaw > Session.ClosestNebula.NoiseRatioCutoff)
+                    Session.NebulaDepthRatioRaw = (float)Session.ClosestNebula.GetDepthRatio(Session.CameraPosition);
+                    if (Session.ClosestNebula.Density != 0)
                     {
+                        if (Session.NebulaDepthRatioRaw > Session.ClosestNebula.Density)
+                            Session.NebulaDepthRatio = Session.NebulaDepthRatioRaw * Session.ClosestNebula.Density;
+                        else
+                            Session.NebulaDepthRatio = 0;
 
-                        float tempScaledIntensity = 0.1f * Session.NebulaDepthRatio;
+                        double tempDot = Math.Abs(Session.CameraRotation.Dot(Session.SunDirection));
+                        Vector4 tempShadowColor = new Vector4(NebulaData.ShadowColor.X, NebulaData.ShadowColor.Y, NebulaData.ShadowColor.Z, (float)(NebulaData.ShadowColor.W * (1f - (Math.Max(tempDot - 0.95f, 0) / 0.05f))));
 
-                        if (Session.ClosestWeatherIntensity < 0.05f)
+                        if (Session.InsideNebulaBounding)
                         {
-                            MyAPIGateway.Session.WeatherEffects.SunIntensityOverride = Math.Max(100f - (Session.NebulaDepthRatio * 200f), 50);
-                            MyAPIGateway.Session.WeatherEffects.FogDensityOverride = tempScaledIntensity;
-                            MyAPIGateway.Session.WeatherEffects.FogMultiplierOverride = tempScaledIntensity;
-                            MyAPIGateway.Session.WeatherEffects.FogAtmoOverride = tempScaledIntensity;
-                            MyAPIGateway.Session.WeatherEffects.FogSkyboxOverride = tempScaledIntensity;
-                            MyAPIGateway.Session.WeatherEffects.FogColorOverride = Session.ClosestNebula.GetColor(Session.CameraPosition);
+                            if (Session.NebulaDepthRatio > 0)
+                            {
+                                float tempScaledIntensity = 0.1f * Session.NebulaDepthRatio;
+
+                                if (Session.ClosestWeatherIntensity < 0.05f)
+                                {
+                                    MyAPIGateway.Session.WeatherEffects.SunIntensityOverride = Math.Max(100f - (Session.NebulaDepthRatio * 200f), 50);
+                                    MyAPIGateway.Session.WeatherEffects.FogDensityOverride = tempScaledIntensity;
+                                    MyAPIGateway.Session.WeatherEffects.FogMultiplierOverride = tempScaledIntensity;
+                                    MyAPIGateway.Session.WeatherEffects.FogAtmoOverride = tempScaledIntensity;
+                                    MyAPIGateway.Session.WeatherEffects.FogSkyboxOverride = tempScaledIntensity;
+                                    MyAPIGateway.Session.WeatherEffects.FogColorOverride = Session.ClosestNebula.GetColor(Session.CameraPosition);
+                                }
+                            }
+
+                            if (Session.ClosestNebula.DrawShadows == ShadowDrawEnum.Both || Session.ClosestNebula.DrawShadows == ShadowDrawEnum.Asteroids)
+                            {
+                                //Asteroid Shadows
+                                foreach (var asteroid in Asteroids)
+                                {
+                                    Vector3D position = asteroid.PositionComp.GetPosition();
+
+                                    if (Session.CameraRotation.Dot(position - Session.CameraPosition) <= 0 || !Session.ClosestNebula.IsInsideNebula(position))
+                                        continue;
+
+                                    //if (asteroid.GetMaterialAt(ref position) != null)
+                                    //{
+                                    float tempRadius = asteroid.PositionComp.LocalVolume.Radius / 2;
+
+                                    float tempDistance = (float)Vector3D.Distance(Session.CameraPosition, position);
+                                    if (tempDistance - (tempRadius * 2) > tempRadius)
+                                        MyTransparentGeometry.AddLineBillboard(NebulaData.ShadowTextures[0], tempShadowColor, position + (Session.SunDirection * tempRadius), -Session.SunDirection, tempRadius * 8, tempRadius, BlendTypeEnum.LDR);
+                                    else
+                                        MyTransparentGeometry.AddLineBillboard(NebulaData.ShadowTextures[0], new Vector4(NebulaData.ShadowColor.X, NebulaData.ShadowColor.Y, NebulaData.ShadowColor.Z, NebulaData.ShadowColor.W * (Math.Min(tempDistance - (tempRadius * 2), tempRadius) / tempRadius)), position + (Session.SunDirection * tempRadius), -Session.SunDirection, tempRadius * 8, tempRadius, BlendTypeEnum.LDR);
+                                    //}
+                                }
+                            }
+                        }
+
+                        if (Session.ClosestNebula.DrawShadows == ShadowDrawEnum.Both || Session.ClosestNebula.DrawShadows == ShadowDrawEnum.Planets)
+                        {
+                            //Planet Shadows
+                            foreach (var planet in Planets)
+                            {
+                                foreach (var nebula in Nebulae)
+                                {
+                                    if (!nebula.IsInsideNebula(planet.PositionComp.GetPosition()) || !nebula.IsInsideNebulaBounding(planet.PositionComp.GetPosition()))
+                                        continue;
+
+                                    int ShadowLength;
+
+                                    if (nebula.IsInsideNebula(planet.PositionComp.GetPosition() + (Session.SunDirection * (planet.MinimumRadius * 9))))
+                                        ShadowLength = 0;
+                                    //else if (nebula.IsInsideNebula(planet.PositionComp.GetPosition() + (Session.SunDirection * (planet.MinimumRadius * 5))))
+                                    //ShadowLength = 1;
+                                    else
+                                        ShadowLength = 2;
+
+                                    float tempDistance = (float)Vector3D.Distance(Session.CameraPosition, planet.PositionComp.GetPosition());
+                                    if (tempDistance - planet.MaximumRadius > planet.MinimumRadius)
+                                        MyTransparentGeometry.AddLineBillboard(NebulaData.ShadowTextures[ShadowLength], tempShadowColor, planet.PositionComp.GetPosition() + (Session.SunDirection * planet.MinimumRadius), -Session.SunDirection, planet.MinimumRadius * 8, planet.MinimumRadius, BlendTypeEnum.LDR);
+                                    else
+                                        MyTransparentGeometry.AddLineBillboard(NebulaData.ShadowTextures[ShadowLength], new Vector4(NebulaData.ShadowColor.X, NebulaData.ShadowColor.Y, NebulaData.ShadowColor.Z, NebulaData.ShadowColor.W * (Math.Min(tempDistance - planet.MaximumRadius, planet.MinimumRadius) / planet.MinimumRadius)), planet.PositionComp.GetPosition() + (Session.SunDirection * planet.MinimumRadius), -Session.SunDirection, planet.MinimumRadius * 8, planet.MinimumRadius, BlendTypeEnum.LDR);
+                                }
+                            }
                         }
                     }
+                }
 
-                    //Asteroid Shadows
-                    foreach (var asteroid in Asteroids)
+                if (Session.PreviousInsideNebulaState != Session.InsideNebulaBounding)
+                {
+                    Session.PreviousInsideNebulaState = Session.InsideNebulaBounding;
+
+                    if (!Session.InsideNebulaBounding)
                     {
-                        if (asteroid is MyPlanet || Session.CameraRotation.Dot(asteroid.PositionComp.GetPosition() - Session.CameraPosition) <= 0 || !Session.ClosestNebula.IsInsideNebula(asteroid.PositionComp.GetPosition()))
-                            continue;
+                        MyAPIGateway.Session.WeatherEffects.SunIntensityOverride = null;
+                        MyAPIGateway.Session.WeatherEffects.FogMultiplierOverride = null;
+                        MyAPIGateway.Session.WeatherEffects.FogColorOverride = null;
+                        MyAPIGateway.Session.WeatherEffects.FogAtmoOverride = null;
+                        MyAPIGateway.Session.WeatherEffects.FogSkyboxOverride = null;
+                        MyAPIGateway.Session.WeatherEffects.FogDensityOverride = null;
 
-                        if (asteroid.StorageName.StartsWith("Ast"))
-                        {
-                            Vector3D position = asteroid.PositionComp.GetPosition();
-
-                            //if (asteroid.GetMaterialAt(ref position) != null)
-                            //{
-                            float tempRadius = asteroid.PositionComp.LocalVolume.Radius / 2;
-
-                            float tempDistance = Vector3.Distance(Session.CameraPosition, position);
-                            if (tempDistance - (tempRadius * 2) > tempRadius)
-                                MyTransparentGeometry.AddLineBillboard(NebulaData.ShadowTextures[0], tempShadowColor, position + (Session.SunDirection * tempRadius), -Session.SunDirection, tempRadius * 8, tempRadius, BlendTypeEnum.LDR);
-                            else
-                                MyTransparentGeometry.AddLineBillboard(NebulaData.ShadowTextures[0], new Vector4(NebulaData.ShadowColor.X, NebulaData.ShadowColor.Y, NebulaData.ShadowColor.Z, NebulaData.ShadowColor.W * (Math.Min(tempDistance - (tempRadius * 2), tempRadius) / tempRadius)), position + (Session.SunDirection * tempRadius), -Session.SunDirection, tempRadius * 8, tempRadius, BlendTypeEnum.LDR);
-                            //}
-                        }
+                        Session.NebulaDepthRatioRaw = 0f;
                     }
                 }
             }
-
-            //Planet Shadows
-            foreach (var planet in Planets)
+            catch(Exception e)
             {
-                foreach (var nebula in Nebulae)
-                {
-                    if (!nebula.IsInsideNebula(planet.PositionComp.GetPosition()))
-                        continue;
-
-                    int ShadowLength;
-
-                    if (nebula.IsInsideNebula(planet.PositionComp.GetPosition() + (Session.SunDirection * (planet.MinimumRadius * 9))))
-                        ShadowLength = 0;
-                    //else if (nebula.IsInsideNebula(planet.PositionComp.GetPosition() + (Session.SunDirection * (planet.MinimumRadius * 5))))
-                    //ShadowLength = 1;
-                    else
-                        ShadowLength = 2;
-
-                    float tempDistance = Vector3.Distance(Session.CameraPosition, planet.PositionComp.GetPosition());
-                    if (tempDistance - planet.MaximumRadius > planet.MinimumRadius)
-                        MyTransparentGeometry.AddLineBillboard(NebulaData.ShadowTextures[ShadowLength], tempShadowColor, planet.PositionComp.GetPosition() + (Session.SunDirection * planet.MinimumRadius), -Session.SunDirection, planet.MinimumRadius * 8, planet.MinimumRadius, BlendTypeEnum.LDR);
-                    else
-                        MyTransparentGeometry.AddLineBillboard(NebulaData.ShadowTextures[ShadowLength], new Vector4(NebulaData.ShadowColor.X, NebulaData.ShadowColor.Y, NebulaData.ShadowColor.Z, NebulaData.ShadowColor.W * (Math.Min(tempDistance - planet.MaximumRadius, planet.MinimumRadius) / planet.MinimumRadius)), planet.PositionComp.GetPosition() + (Session.SunDirection * planet.MinimumRadius), -Session.SunDirection, planet.MinimumRadius * 8, planet.MinimumRadius, BlendTypeEnum.LDR);
-                }
-            }
-            if (Session.PreviousInsideNebulaState != Session.InsideNebulaBounding)
-            {
-                Session.PreviousInsideNebulaState = Session.InsideNebulaBounding;
-
-                if (!Session.InsideNebulaBounding)
-                {
-                    MyAPIGateway.Session.WeatherEffects.SunIntensityOverride = null;
-                    MyAPIGateway.Session.WeatherEffects.FogMultiplierOverride = null;
-                    MyAPIGateway.Session.WeatherEffects.FogColorOverride = null;
-                    MyAPIGateway.Session.WeatherEffects.FogAtmoOverride = null;
-                    MyAPIGateway.Session.WeatherEffects.FogSkyboxOverride = null;
-                    MyAPIGateway.Session.WeatherEffects.FogDensityOverride = null;
-
-                    Session.NebulaDepthRatioRaw = 0f;
-                }
+                JakUtils.ShowMessage(e.ToString());
             }
         }
 
@@ -1351,14 +1444,14 @@ namespace Jakaria
 
         public string GetRandomWeather()
         {
-            return WeatherRandomizer[MyUtils.GetRandomInt(0, WeatherBuilders.Count)];
+            return WeatherRandomizer[MyUtils.GetRandomInt(0, WeatherRandomizer.Count)];
         }
 
         public bool GetRandomWeather(out string weather)
         {
             if (WeatherRandomizer.Count > 0)
             {
-                weather = WeatherRandomizer[MyUtils.GetRandomInt(0, WeatherBuilders.Count)];
+                weather = WeatherRandomizer[MyUtils.GetRandomInt(0, WeatherRandomizer.Count)];
                 return true;
             }
 

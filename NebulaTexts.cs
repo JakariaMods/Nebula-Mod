@@ -27,6 +27,7 @@ namespace Jakaria
         public const string NebulaSetRadius = "Set the nebula's radius to {0}km.";
         public const string NebulaSetFrequency = "Set the nebula's weather frequency to between {0} and {1} seconds.";
         public const string NebulaSetLength = "Set the nebula's weather length to between {0} and {1} seconds.";
+        public const string NebulaSetIntensity = "Set the nebula's noise intensity to {0}.";
 
         public const string NebulaGetDensity = "The nebula's density is {0}.";
         public const string NebulaGetSeed = "The nebula's seed is {0}.";
@@ -38,15 +39,20 @@ namespace Jakaria
         public const string NebulaGetFrequency = "The nebula's weather frequency is between {0} and {1} seconds.";
         public const string NebulaGetLength = "The nebula's weather length is between {0} and {1} seconds.";
         public const string NebulaGetWeather = "{0} is currently occuring";
+        public const string NebulaGetIntensity = "The nebula's noise intensity is {0}.";
 
         public const string NebulaSpawnWeather = "Spawned {0}";
         public const string NebulaListWeather = "Available weathers: {0}";
         public const string NebulaSpawnRandomWeather = "Spawned random weather";
         public const string NebulaSpawnWeatherFail = "Weather is already occuring";
 
+        public const string NebulaSetShadows = "Set the nebula's shadow setting to {0}";
+        public const string NebulaGetShadows = "The nebula's shadow setting is {0}";
+
         public const string NoParseFloat = "Couldn't parse float {0}.";
         public const string NoParseInt = "Couldn't parse int {0}.";
         public const string NoParseWeather = "Couldn't find weather {0}.";
+        public const string NoParseEnum = "Couldn't parse enum {0}.";
         public const string NoNebula = "You're not inside a nebula.";
         public const string NoRoom = "You're too close to another nebula.";
         public const string NoPermissions = "You're not a high enough rank to do this.";

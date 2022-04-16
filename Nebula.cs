@@ -13,6 +13,7 @@ using BlendTypeEnum = VRageRender.MyBillboard.BlendTypeEnum;
 using Sandbox.ModAPI;
 using static Jakaria.NebulaMod;
 using Sandbox.Game;
+using VRageRender;
 
 namespace Jakaria
 {
@@ -35,7 +36,9 @@ namespace Jakaria
         [ProtoMember(16), XmlElement]
         public float ColorNoiseScale = 0.00005f;
         [ProtoMember(17), XmlElement]
-        public float NoiseRatioCutoff = 0.35f;
+        public float Density = 0.35f;
+        [ProtoMember(18), XmlElement]
+        public float NoiseMultiplier = 1f;
         [ProtoMember(20), XmlElement]
         public Vector4 PrimaryColor = new Vector4(0.1f, 0.1f, 0.2f, 0.75f);
         [ProtoMember(25), XmlElement]
@@ -53,13 +56,16 @@ namespace Jakaria
         [ProtoMember(36), XmlElement]
         public int MaxWeatherLength = 36000;
 
-        public Nebula(Vector3 position, int radius, int seed = 1337)
+        [ProtoMember(40), XmlElement]
+        public ShadowDrawEnum DrawShadows = ShadowDrawEnum.Both;
+
+        public Nebula(Vector3D position, int radius, int seed)
         {
             this.Position = position;
             this.Radius = radius;
             this.Seed = seed;
 
-            Noise = new FastNoiseLite(seed);
+            Noise = new FastNoiseLite(Seed);
             NextWeather = MyUtils.GetRandomInt(MinWeatherFrequency, MaxWeatherFrequency);
             BuildTree();
         }
@@ -85,7 +91,7 @@ namespace Jakaria
             return CreateWeather(position, NebulaMod.Static.GetRandomWeather(), true);
         }
 
-        public bool CreateWeatherDetailed(Vector3D position, string weather, Vector3D velocity, int maxLife, float radius)
+        public bool CreateWeatherDetailed(Vector3D position, string weather, Vector3 velocity, int maxLife, float radius)
         {
             if (IsNearWeather(position))
                 return false;
@@ -108,12 +114,12 @@ namespace Jakaria
             float radius = (Radius * 0.1f) * 100;
             int lifeTime = MyUtils.GetRandomInt(MinWeatherLength, MaxWeatherLength);
             float speed = radius / (lifeTime / 60f);
-            Vector3D direction = MyUtils.GetRandomVector3Normalized();
+            Vector3 direction = MyUtils.GetRandomVector3Normalized();
 
             if (natural)
                 SpaceWeathers.Add(new SpaceWeather(position - (direction * radius), direction * speed, radius, lifeTime, weather));
             else
-                SpaceWeathers.Add(new SpaceWeather(position, Vector3D.Zero, radius, -1, weather));
+                SpaceWeathers.Add(new SpaceWeather(position, Vector3.Zero, radius, -1, weather));
 
             if (MyAPIGateway.Session.IsServer)
                 NebulaMod.Static.SyncToClients(NebulaPacketType.Nebulae);
@@ -179,13 +185,15 @@ namespace Jakaria
 
         public void BuildTree()
         {
-            RootNode = new NebulaDrawNode(0, Position, Radius * 2000, this);
+            float RootRadius = Radius * 2000;
+
+            RootNode = new NebulaDrawNode(0, Position, ref RootRadius, this);
         }
 
         public bool IsInsideNebula(Vector3D Position)
         {
             Position *= NoiseScale;
-            return Noise.GetNoise(Position.X, Position.Y, Position.Z) > NoiseRatioCutoff;
+            return Noise.GetNoise(Position.X, Position.Y, Position.Z) * NoiseMultiplier > Density;
         }
 
         public bool IsInsideNebulaBounding(Vector3D Position)
@@ -193,15 +201,15 @@ namespace Jakaria
             return (this.Position - Position).AbsMax() < Radius * 1000;
         }
 
-        public float GetDepthRatio(Vector3D Position)
+        public double GetDepthRatio(Vector3D Position)
         {
             Position *= NoiseScale;
-            return Noise.GetNoise(Position.X, Position.Y, Position.Z);
+            return Math.Min(Noise.GetNoise(Position.X, Position.Y, Position.Z) * NoiseMultiplier, 1);
         }
 
         public Vector4 GetColorWithAlpha(Vector3D Position)
         {
-            return Vector4.Lerp(PrimaryColor, SecondaryColor, Noise.GetNoise(Position.X * ColorNoiseScale, Position.Y * ColorNoiseScale, Position.Z * ColorNoiseScale));
+            return Vector4.Lerp(PrimaryColor, SecondaryColor, (float)Noise.GetNoise(Position.X * ColorNoiseScale, Position.Y * ColorNoiseScale, Position.Z * ColorNoiseScale));
         }
 
         public Vector3 GetColor(Vector3D Position)
@@ -209,7 +217,7 @@ namespace Jakaria
             Vector3 tempVector = new Vector3(PrimaryColor.X, PrimaryColor.Y, PrimaryColor.Z);
             Vector3 tempVector2 = new Vector3(SecondaryColor.X, SecondaryColor.Y, SecondaryColor.Z);
 
-            return Vector3.Lerp(tempVector, tempVector2, Noise.GetNoise(Position.X * ColorNoiseScale, Position.Y * ColorNoiseScale, Position.Z * ColorNoiseScale));
+            return Vector3.Lerp(tempVector, tempVector2, (float)Noise.GetNoise(Position.X * ColorNoiseScale, Position.Y * ColorNoiseScale, Position.Z * ColorNoiseScale));
         }
 
         public void Draw()
@@ -227,95 +235,7 @@ namespace Jakaria
                 }
             }
 
-            RootNode?.Draw(this);
-        }
-
-        public class NebulaDrawNode
-        {
-            Vector3D CenterPosition;
-            float NodeDiameter;
-            int NodeDepth = 0;
-            float NodeNoiseValue;
-            Vector4 NodeColor;
-
-            NebulaDrawNode[] RootNodes;
-
-            public void BuildNode(Nebula nebula)
-            {
-                if (NodeDiameter > 20000 && (NodeDiameter > 300000 || IsPositionInsideDrawNode(NebulaMod.Session.CameraPosition)))
-                {
-                    RootNodes = new NebulaDrawNode[8];
-
-                    int tempDepth = NodeDepth + 1;
-                    float tempHalfRadius = NodeDiameter / 2f;
-                    float tempQuarterRadius = NodeDiameter / 4f;
-
-                    RootNodes[0] = new NebulaDrawNode(tempDepth, CenterPosition + new Vector3D(-tempQuarterRadius, -tempQuarterRadius, -tempQuarterRadius), tempHalfRadius, nebula);
-                    RootNodes[1] = new NebulaDrawNode(tempDepth, CenterPosition + new Vector3D(tempQuarterRadius, -tempQuarterRadius, -tempQuarterRadius), tempHalfRadius, nebula);
-                    RootNodes[2] = new NebulaDrawNode(tempDepth, CenterPosition + new Vector3D(-tempQuarterRadius, -tempQuarterRadius, tempQuarterRadius), tempHalfRadius, nebula);
-                    RootNodes[3] = new NebulaDrawNode(tempDepth, CenterPosition + new Vector3D(tempQuarterRadius, -tempQuarterRadius, tempQuarterRadius), tempHalfRadius, nebula);
-                    RootNodes[4] = new NebulaDrawNode(tempDepth, CenterPosition + new Vector3D(-tempQuarterRadius, tempQuarterRadius, -tempQuarterRadius), tempHalfRadius, nebula);
-                    RootNodes[5] = new NebulaDrawNode(tempDepth, CenterPosition + new Vector3D(tempQuarterRadius, tempQuarterRadius, -tempQuarterRadius), tempHalfRadius, nebula);
-                    RootNodes[6] = new NebulaDrawNode(tempDepth, CenterPosition + new Vector3D(-tempQuarterRadius, tempQuarterRadius, tempQuarterRadius), tempHalfRadius, nebula);
-                    RootNodes[7] = new NebulaDrawNode(tempDepth, CenterPosition + new Vector3D(tempQuarterRadius, tempQuarterRadius, tempQuarterRadius), tempHalfRadius, nebula);
-                }
-                else
-                {
-                    Vector3D tempVector = CenterPosition * nebula.NoiseScale;
-                    NodeNoiseValue = nebula.Noise.GetNoise(tempVector.X, tempVector.Y, tempVector.Z);
-
-                    NodeColor = Vector4.Lerp(nebula.PrimaryColor, nebula.SecondaryColor, nebula.Noise.GetNoise(CenterPosition.X * nebula.ColorNoiseScale, CenterPosition.Y * nebula.ColorNoiseScale, CenterPosition.Z * nebula.ColorNoiseScale));
-                    NodeColor.W *= MyMath.Clamp((nebula.NoiseRatioCutoff - NodeNoiseValue) / nebula.NoiseRatioCutoff, 0, 1f);
-                }
-            }
-
-            public void Draw(Nebula nebula)
-            {
-                if (NebulaMod.Session.CameraRotation.Dot(CenterPosition - NebulaMod.Session.CameraPosition + (NebulaMod.Session.CameraRotation * NodeDiameter)) <= 0)
-                    return;
-
-                if (RootNodes == null)
-                {
-                    if (NodeNoiseValue > nebula.NoiseRatioCutoff)
-                    {
-                        float tempNoise2 = nebula.Noise.GetNoise(CenterPosition.X + (MyAPIGateway.Session.ElapsedPlayTime.TotalSeconds * 0.008), CenterPosition.Y, CenterPosition.Z);
-                        float tempRadius = NodeDiameter * (3 + (tempNoise2 * 2));
-
-                        if (NodeDiameter > 2500)
-                            MyTransparentGeometry.AddPointBillboard(NebulaData.NebulaTextures[(int)MyMath.Clamp(tempNoise2 * NebulaData.NebulaTextures.Length, 0, NebulaData.NebulaTextures.Length)], NodeColor, CenterPosition, tempRadius, tempNoise2 * 360, blendType: BlendTypeEnum.LDR);
-                        else
-                            MyTransparentGeometry.AddPointBillboard(NebulaData.NebulaTextures[(int)MyMath.Clamp(tempNoise2 * NebulaData.NebulaTextures.Length, 0, NebulaData.NebulaTextures.Length)], NodeColor, CenterPosition, tempRadius, tempNoise2 * 360, blendType: BlendTypeEnum.LDR);
-                    }
-
-                }
-                else
-                {
-                    foreach (var node in RootNodes)
-                    {
-                        node.Draw(nebula);
-                    }
-                }
-
-            }
-
-            public bool IsPositionInsideDrawNode(Vector3D Position)
-            {
-                return (Position - CenterPosition).AbsMax() < NodeDiameter;
-            }
-
-            public NebulaDrawNode(int Depth, Vector3D CenterPosition, float Diameter, Nebula nebula)
-            {
-                this.NodeDepth = Depth;
-                this.CenterPosition = CenterPosition;
-                this.NodeDiameter = Diameter;
-
-                BuildNode(nebula);
-            }
-
-            public override string ToString()
-            {
-                return "Position: " + this.CenterPosition.ToString() + " Radius: " + this.NodeDiameter + " Depth: " + this.NodeDepth;
-            }
+            RootNode?.Draw();
         }
     }
 }

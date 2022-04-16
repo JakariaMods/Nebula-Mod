@@ -20,7 +20,7 @@ namespace Jakaria.Utils
 {
     public static class JakUtils
     {
-        public static string ModName = MyAPIGateway.Utilities.GamePaths.ModScopeName.Split('_')[1];
+        public static string ModName = "";
 
         /// <summary>
         /// Returns a vector perpendicular to a vector, takes an angle

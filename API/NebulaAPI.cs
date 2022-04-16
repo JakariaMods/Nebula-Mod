@@ -18,52 +18,12 @@ namespace Jakaria.API
     [MySessionComponentDescriptor(MyUpdateOrder.NoUpdate)]
     public class NebulaAPI : MySessionComponentBase
     {
-        private WeatherBuilder[] CustomWeathers = new WeatherBuilder[]
-        {
-            //Put any Custom Weathers you want here
-            /*new WeatherBuilder()
-            {
-                 Name = "Example",
-                 MinLightningFrequency = 5,
-                 MaxLightningFrequency = 10,
-
-                Lightning = new LightningBuilder()
-                {
-                    MaxLife = 25,
-                    BoltParts = 50,
-                    BoltVariation = 100,
-                    BoltRadius = 5,
-                    Color = Vector4.One * 3,
-                },
-
-                RadiationCharacterDamage = 20,
-                AmbientSound = "JGeigerAmbient",
-                DisableDampenersCharacter  = true,
-                DisableDampenersGrid = true,
-                RenderIons = true,
-                RenderComets = true,
-                AmbientRadiationAmount = 5,
-                DamageRadiationAmount = 200,
-                BlocksToDisable = new string[]
-                {
-                    "MyObjectBuilder_JumpDrive"
-                },
-                HudWarning = "If this is enabled go yell at jakaria :/",
-                Weight = 1,
-                CharacterWindForce = 0,
-                GridWindForce = 0,
-                DustAmount = 0,
-                GridDragForce = 0,
-                CharacterDragForce = 0,
-            },*/
-        };
-
         //Do not touch anything else
 
-        public static string ModName = MyAPIGateway.Utilities.GamePaths.ModScopeName.Split('_')[1];
+        public static string ModName = "UnknownMod";
         public const ushort ModHandlerID = 13377;
         public const ushort ModHandlerIDWeather = 13378;
-        public const int ModAPIVersion = 5;
+        public const int ModAPIVersion = 6;
         public bool Registered { get; private set; } = false;
 
         private static Dictionary<string, Delegate> ModAPIMethods;
@@ -85,6 +45,8 @@ namespace Jakaria.API
         private static Action<bool?> _ForceRenderComets;
         private static Func<string> _GetRandomWeather;
         private static Func<Vector3D, bool> _IsNearWeather;
+
+        private static Action<Vector3D, int> _CreateNebula;
 
         /// <summary>
         /// Returns true if the version is compatibile with the API Backend, this is automatically called
@@ -162,6 +124,11 @@ namespace Jakaria.API
         public static void RunCommand(string Command) => _RunCommand?.Invoke(Command);
 
         /// <summary>
+        /// Creates a nebula of radius (km) at the provided position
+        /// </summary>
+        public static void CreateNebula(Vector3D position, int radius) => _CreateNebula.Invoke(position, radius);
+
+        /// <summary>
         /// Returns true if a weather is occuring or incoming at the position
         /// </summary>
         public static bool IsNearWeather(Vector3D Position) => _IsNearWeather?.Invoke(Position) ?? false;
@@ -178,6 +145,9 @@ namespace Jakaria.API
 
         private void ModHandler(object obj)
         {
+            if (MyAPIGateway.Utilities.GamePaths?.ModScopeName != null)
+                ModName = MyAPIGateway.Utilities.GamePaths.ModScopeName.Split('_')[1];
+
             if (obj == null)
             {
                 return;
@@ -212,108 +182,16 @@ namespace Jakaria.API
                     _ForceRenderComets = (Action<bool?>)ModAPIMethods["ForceRenderComets"];
                     _GetRandomWeather = (Func<string>)ModAPIMethods["GetRandomWeather"];
                     _IsNearWeather = (Func<Vector3D, bool>)ModAPIMethods["IsNearWeather"];
+
+                    //6
+                    _CreateNebula = (Action<Vector3D, int>)ModAPIMethods["CreateNebula"];
                 }
                 catch (Exception e)
                 {
                     MyAPIGateway.Utilities.ShowMessage("NebulaMod", "Mod '" + ModName + "' encountered an error when registering the Nebula Mod API, see log for more info.");
                     MyLog.Default.WriteLine(e);
                 }
-
-                if (CustomWeathers.Length > 0)
-                {
-                    MyAPIGateway.Utilities.SendModMessage(ModHandlerIDWeather, MyAPIGateway.Utilities.SerializeToBinary(CustomWeathers));
-                }
             }
-        }
-
-        [ProtoContract]
-        public class WeatherBuilder
-        {
-            [ProtoMember(1)]
-            public string Name;
-
-            //public readonly MyFogProperties FogProperties;
-            //public MyParticleEffect ParticleEffect;
-
-            [ProtoMember(5)]
-            public int MinLightningFrequency;
-
-            [ProtoMember(6)]
-            public int MaxLightningFrequency;
-
-            [ProtoMember(7)]
-            public LightningBuilder Lightning;
-
-            [ProtoMember(10)]
-            public float RadiationCharacterDamage;
-            [ProtoMember(11)]
-            public string AmbientSound;
-
-            [ProtoIgnore, XmlIgnore]
-            public MySoundPair AmbientSoundPair;
-
-            [ProtoMember(15), Obsolete]
-            public bool ForceDisableDampeners;
-
-            [ProtoMember(16)]
-            public bool DisableDampenersGrid;
-
-            [ProtoMember(17)]
-            public bool DisableDampenersCharacter;
-
-            [ProtoMember(20)]
-            public bool RenderIons;
-
-            [ProtoMember(21)]
-            public bool RenderComets;
-
-            [ProtoMember(25)]
-            public int AmbientRadiationAmount;
-            [ProtoMember(26)]
-            public int DamageRadiationAmount;
-
-            [ProtoMember(30)]
-            public string[] BlocksToDisable;
-
-            [ProtoMember(35)]
-            public string HudWarning;
-
-            [ProtoMember(36)]
-            public int Weight;
-
-            [ProtoMember(40)]
-            public float CharacterWindForce;
-
-            [ProtoMember(41)]
-            public float GridWindForce;
-
-            [ProtoMember(45)]
-            public int DustAmount;
-
-            [ProtoMember(46)]
-            public float GridDragForce;
-
-            [ProtoMember(47)]
-            public float CharacterDragForce;
-        }
-
-        [ProtoContract]
-        public class LightningBuilder
-        {
-            [ProtoMember(1)]
-            public int MaxLife = 25;
-
-            [ProtoMember(5)]
-            public int BoltParts = 50;
-
-            [ProtoMember(10)]
-            public int BoltVariation = 100;
-
-            [ProtoMember(15)]
-            public int BoltRadius = 5;
-
-            [ProtoMember(20)]
-            public Vector4 Color = Vector4.One * 3;
         }
     }
 }

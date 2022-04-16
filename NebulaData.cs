@@ -1,4 +1,5 @@
-﻿using Sandbox.Game.Entities;
+﻿using Jakaria.Definitions;
+using Sandbox.Game.Entities;
 using Sandbox.ModAPI;
 using System;
 using System.Collections.Generic;
@@ -13,13 +14,18 @@ namespace Jakaria
 {
     public static class NebulaData
     {
-        public const string Version = "1.12";
+        public const string Version = "1.14";
+        public const bool EarlyAccess = true;
+
         public const ushort ClientHandlerID = 50280;
         public const ushort ModHandlerID = 50281;
 
         public static readonly Vector4 ShadowColor = new Vector4(1f, 1f, 1f, 0.3f);
         public static readonly Vector4 WhiteColor = Vector4.One;
         public static readonly Vector4 CometColor = new Vector4(0.93f * 2, 0.24f * 2, 0.35f * 2, 0.1f);
+        public static readonly Vector4 IonColor = Vector4.One * 0.04f;
+        public static readonly Vector4 DustColor = Vector4.One * 0.75f;
+
         public static readonly MyStringId LightningMaterial = MyStringId.GetOrCompute("WeaponLaserIgnoreDepth");
         public static readonly MyStringId DebugMaterial = MyStringId.GetOrCompute("Square");
         public static readonly MyStringId FlareMaterial = MyStringId.GetOrCompute("particle_glare_alpha");
@@ -50,5 +56,27 @@ namespace Jakaria
         public static readonly MySoundPair IonInterferenceSound = new MySoundPair("JIonInterference");
 
         public static readonly float FlareIntensity = MyAPIGateway.Session.Config == null ? 1 : MyAPIGateway.Session.Config.FlaresIntensity;
+
+        public static readonly Vector3D[] CornerDirections = new Vector3D[8]
+        {
+            new Vector3D(-1, -1, -1),
+            new Vector3D(1, -1, -1),
+            new Vector3D(-1, -1, 1),
+            new Vector3D(1, -1, 1),
+            new Vector3D(-1, 1, -1),
+            new Vector3D(1, 1, -1),
+            new Vector3D(-1, 1, 1),
+            new Vector3D(1, 1, 1),
+        };
+
+        public static Dictionary<string, NebulaWeatherDefinition> WeatherDefinitions = new Dictionary<string, NebulaWeatherDefinition>();
+    }
+
+    public enum ShadowDrawEnum
+    {
+        None,
+        Asteroids,
+        Planets,
+        Both
     }
 }

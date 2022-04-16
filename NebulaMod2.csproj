@@ -4,7 +4,7 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{81B4798E-2756-4731-8A74-A91E81AF65BF}</ProjectGuid>
+    <ProjectGuid>{B6FE59F4-6D5F-4BEA-AD18-C1E367A10667}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <RootNamespace>Blank</RootNamespace>
     <AssemblyName>Blank</AssemblyName>
@@ -36,10 +36,16 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="API\WaterModAPI.cs" />
+    <Compile Include="Definitions\NebulaLightningDefinition.cs" />
+    <Compile Include="Definitions\NebulaModDefinitions.cs" />
+    <Compile Include="Definitions\NebulaWeatherDefinition.cs" />
     <Compile Include="Lightning.cs" />
     <Compile Include="API\NebulaAPI.cs" />
     <Compile Include="API\NebulaBackend.cs" />
-    <Compile Include="SimpleParticle.cs" />
+    <Compile Include="NebulaDrawNode.cs" />
+    <Compile Include="Particles\CometParticle.cs" />
+    <Compile Include="Particles\SimpleParticle.cs" />
     <Compile Include="NebulaResourceCollector.cs" />
     <Compile Include="Utils\FastNoiseLite.cs" />
     <Compile Include="Utils\JakUtils.cs" />

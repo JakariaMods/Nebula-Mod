@@ -7,6 +7,7 @@ using VRageMath;
 using Jakaria.Utils;
 using Sandbox.ModAPI;
 using static Jakaria.NebulaMod;
+using Jakaria.Definitions;
 
 namespace Jakaria.API
 {
@@ -37,7 +38,16 @@ namespace Jakaria.API
             ["ForceRenderComets"] = new Action<bool?>(ForceRenderComets),
             ["GetRandomWeather"] = new Func<string>(GetRandomWeather),
             ["IsNearWeather"] = new Func<Vector3D, bool>(IsNearWeather),
+
+            //6
+            ["CreateNebula"] = new Action<Vector3D, int>(CreateNebula),
         };
+
+        private static void CreateNebula(Vector3D position, int radius)
+        {
+            if(MyAPIGateway.Session.IsServer)
+                NebulaMod.Static.CreateNebula(position, radius);
+        }
 
         private static bool IsNearWeather(Vector3D arg)
         {
@@ -67,7 +77,7 @@ namespace Jakaria.API
                 {
                     if (Nebula.IsInsideNebulaBounding(arg1))
                     {
-                        Nebula.CreateWeatherDetailed(arg1, arg2, arg3, arg4, arg5);
+                        Nebula.CreateWeatherDetailed(arg1, arg2, (Vector3)arg3, arg4, arg5);
                         return true;
                     }
                 }
@@ -187,7 +197,7 @@ namespace Jakaria.API
 
         private static float GetNebulaDensity(Vector3D Position)
         {
-            return NebulaMod.Static.GetClosestNebula(Position).GetDepthRatio(Position);
+            return (float)NebulaMod.Static.GetClosestNebula(Position).GetDepthRatio(Position);
         }
 
         private static bool VerifyVersion(int ModAPIVersion, string ModName)
@@ -207,7 +217,7 @@ namespace Jakaria.API
             foreach (var nebula in NebulaMod.Static.Nebulae)
             {
                 if (nebula.IsInsideNebulaBounding(Position))
-                    return MyMath.Clamp(nebula.Noise.GetNoise(Position.X * nebula.ColorNoiseScale, Position.Y * nebula.ColorNoiseScale, Position.Z * nebula.ColorNoiseScale), 0, 1);
+                    return MyMath.Clamp((float)nebula.Noise.GetNoise(Position.X * nebula.ColorNoiseScale, Position.Y * nebula.ColorNoiseScale, Position.Z * nebula.ColorNoiseScale), 0, 1);
             }
 
             return 0;
@@ -225,13 +235,7 @@ namespace Jakaria.API
 
         public static void ModHandler(object obj)
         {
-            WeatherBuilder[] CustomWeathers = MyAPIGateway.Utilities.SerializeFromBinary<WeatherBuilder[]>((byte[])obj);
 
-            foreach (var Weather in CustomWeathers)
-            {
-                Weather.Init();
-                NebulaMod.Static.WeatherBuilders[Weather.Name] = Weather;
-            }
         }
 
         public static void UnloadData()

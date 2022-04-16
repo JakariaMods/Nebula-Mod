@@ -16,6 +16,7 @@ using CollisionLayers = Sandbox.Engine.Physics.MyPhysics.CollisionLayers;
 using VRage.Game.Entity;
 using Sandbox.Game.Entities.Character;
 using Sandbox.Game;
+using Jakaria.Definitions;
 
 namespace Jakaria
 {
@@ -29,7 +30,7 @@ namespace Jakaria
         [ProtoMember(3), XmlElement]
         public Vector3D EndPosition;
         [ProtoMember(5), XmlElement]
-        public Vector3D Velocity;
+        public Vector3 Velocity;
         [ProtoMember(10), XmlElement]
         public float Radius;
         [ProtoMember(15), XmlElement]
@@ -42,15 +43,15 @@ namespace Jakaria
         public string Weather;
 
         [ProtoIgnore, XmlIgnore]
-        public WeatherBuilder Builder;
+        public NebulaWeatherDefinition Builder;
         [ProtoIgnore, XmlIgnore]
         List<MyEntity> ContainedEntities = new List<MyEntity>();
         [ProtoIgnore, XmlIgnore]
         public int NextEntityCollection = 0;
         [ProtoIgnore, XmlIgnore]
-        public Vector3D Direction;
+        public Vector3 Direction;
 
-        public SpaceWeather(Vector3D position, Vector3D velocity, float radius, int maxLife, string weather)
+        public SpaceWeather(Vector3D position, Vector3 velocity, float radius, int maxLife, string weather)
         {
             Position = position;
             Velocity = velocity;
@@ -66,11 +67,17 @@ namespace Jakaria
 
         public void Init()
         {
-            NebulaMod.Static.WeatherBuilders.TryGetValue(Weather, out Builder);
+            NebulaData.WeatherDefinitions.TryGetValue(Weather, out Builder);
 
             if (!MyAPIGateway.Utilities.IsDedicated && Builder?.HudWarning != null)
             {
-                double LineDistance = MyUtils.GetPointLineDistance(ref StartPosition, ref EndPosition, ref NebulaMod.Session.CameraPosition);
+                double LineDistance;
+                
+                if(StartPosition == EndPosition)
+                    LineDistance = Vector3D.Distance(NebulaMod.Session.CameraPosition, StartPosition);
+                else
+                    LineDistance = Vector3D.Distance(NebulaMod.Session.CameraPosition, MyUtils.GetClosestPointOnLine(ref StartPosition, ref EndPosition, ref NebulaMod.Session.CameraPosition));
+
                 if (double.IsNaN(LineDistance) || LineDistance < Radius)
                 {
                     JakUtils.ShowNotification(Builder.HudWarning, 10000, "Red");
@@ -188,7 +195,18 @@ namespace Jakaria
                     if (NextLightning < 0)
                     {
                         NextLightning = MyUtils.GetRandomInt(Builder.MinLightningFrequency, Builder.MaxLightningFrequency);
-                        NebulaMod.Static.CreateLightning(Position + (MyUtils.GetRandomVector3Normalized() * MyUtils.GetRandomFloat(0, Radius)), Builder.Name);
+
+                        Vector3D lightningPosition = Position + (MyUtils.GetRandomVector3Normalized() * MyUtils.GetRandomFloat(0, Radius));
+                        BoundingSphereD sphere = new BoundingSphereD(lightningPosition, 1);
+                        List<MyVoxelBase> result = new List<MyVoxelBase>();
+
+                        MyGamePruningStructure.GetAllVoxelMapsInSphere(ref sphere, result);
+
+                        if (result.Count > 0)
+                        {
+                            NebulaMod.Static.CreateLightning(lightningPosition, Builder.Name);
+                            result.Clear();
+                        }
                     }
                 }
             }
@@ -246,105 +264,5 @@ namespace Jakaria
                     MyTransparentGeometry.AddLineBillboard(NebulaData.DebugMaterial, Vector4.One, NebulaMod.Session.PlayerPosition, NebulaMod.Session.SunDirection, 5000, 1);
             }
         }
-    }
-
-    [ProtoContract]
-    public class WeatherBuilder
-    {
-        [ProtoMember(1)]
-        public string Name;
-
-        //public readonly MyFogProperties FogProperties;
-        //public MyParticleEffect ParticleEffect;
-
-        [ProtoMember(5)]
-        public int MinLightningFrequency;
-
-        [ProtoMember(6)]
-        public int MaxLightningFrequency;
-
-        [ProtoMember(7)]
-        public LightningBuilder Lightning;
-
-        [ProtoMember(10)]
-        public float RadiationCharacterDamage;
-
-        [ProtoMember(11)]
-        public string AmbientSound;
-
-        [ProtoIgnore, XmlIgnore]
-        public MySoundPair AmbientSoundPair;
-
-        [ProtoMember(15), Obsolete]
-        public bool ForceDisableDampeners; //Unused
-
-        [ProtoMember(16)]
-        public bool DisableDampenersGrid;
-
-        [ProtoMember(17)]
-        public bool DisableDampenersCharacter;
-
-        [ProtoMember(20)]
-        public bool RenderIons;
-
-        [ProtoMember(21)]
-        public bool RenderComets;
-
-        [ProtoMember(25)]
-        public int AmbientRadiationAmount;
-        [ProtoMember(26)]
-        public int DamageRadiationAmount;
-
-        [ProtoMember(30)]
-        public string[] BlocksToDisable;
-
-        [ProtoMember(35)]
-        public string HudWarning;
-
-        [ProtoMember(36)]
-        public int Weight;
-
-        [ProtoMember(40)]
-        public float CharacterWindForce;
-
-        [ProtoMember(41)]
-        public float GridWindForce;
-
-        [ProtoMember(45)]
-        public int DustAmount;
-
-        [ProtoMember(46)]
-        public float GridDragForce;
-
-        [ProtoMember(47)]
-        public float CharacterDragForce;
-
-        public void Init()
-        {
-            AmbientSoundPair = new MySoundPair(AmbientSound);
-            for (int i = 0; i < Weight; i++)
-            {
-                NebulaMod.Static.WeatherRandomizer.Add(Name);
-            }
-        }
-    }
-
-    [ProtoContract]
-    public class LightningBuilder
-    {
-        [ProtoMember(1)]
-        public int MaxLife = 25;
-
-        [ProtoMember(5)]
-        public int BoltParts = 50;
-
-        [ProtoMember(10)]
-        public int BoltVariation = 100;
-
-        [ProtoMember(15)]
-        public int BoltRadius = 5;
-
-        [ProtoMember(20)]
-        public Vector4 Color = Vector4.One * 3;
     }
 }
