@@ -41,7 +41,42 @@ namespace Jakaria.API
 
             //6
             ["CreateNebula"] = new Action<Vector3D, int>(CreateNebula),
+
+            //7
+            ["SetColors"] = new Action<Vector3D, Vector4, Vector4>(SetColors),
+            ["GetPrimaryColor"] = new Func<Vector3D, Vector4?>(GetPrimaryColor),
+            ["GetSecondaryColor"] = new Func<Vector3D, Vector4?>(GetSecondaryColor),
+            ["RemoveNebula"] = new Func<Vector3D, bool>(RemoveNebula),
         };
+
+        private static bool RemoveNebula(Vector3D position)
+        {
+            return NebulaMod.Static.RemoveNebula(position);
+        }
+
+        private static Vector4? GetPrimaryColor(Vector3D position)
+        {
+            return NebulaMod.Static.GetClosestNebula(position)?.PrimaryColor;
+        }
+
+        private static Vector4? GetSecondaryColor(Vector3D position)
+        {
+            return NebulaMod.Static.GetClosestNebula(position)?.SecondaryColor;
+        }
+
+        private static void SetColors(Vector3D position, Vector4 primaryColor, Vector4 secondaryColor)
+        {
+            if (MyAPIGateway.Session.IsServer)
+            {
+                Nebula nebula = NebulaMod.Static.GetClosestNebula(position);
+                if(nebula != null)
+                {
+                    nebula.PrimaryColor = primaryColor;
+                    nebula.SecondaryColor = secondaryColor;
+                    NebulaMod.Static.SyncToClients(NebulaPacketType.Nebulae);
+                }
+            }
+        }
 
         private static void CreateNebula(Vector3D position, int radius)
         {

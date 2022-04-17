@@ -23,7 +23,7 @@ namespace Jakaria.API
         public static string ModName = "UnknownMod";
         public const ushort ModHandlerID = 13377;
         public const ushort ModHandlerIDWeather = 13378;
-        public const int ModAPIVersion = 6;
+        public const int ModAPIVersion = 7;
         public bool Registered { get; private set; } = false;
 
         private static Dictionary<string, Delegate> ModAPIMethods;
@@ -47,6 +47,11 @@ namespace Jakaria.API
         private static Func<Vector3D, bool> _IsNearWeather;
 
         private static Action<Vector3D, int> _CreateNebula;
+
+        private static Action<Vector3D, Vector4, Vector4> _SetColors;
+        private static Func<Vector3D, Vector4?> _GetPrimaryColor;
+        private static Func<Vector3D, Vector4?> _GetSecondaryColor;
+        private static Func<Vector3D, bool> _RemoveNebula;
 
         /// <summary>
         /// Returns true if the version is compatibile with the API Backend, this is automatically called
@@ -126,12 +131,32 @@ namespace Jakaria.API
         /// <summary>
         /// Creates a nebula of radius (km) at the provided position
         /// </summary>
-        public static void CreateNebula(Vector3D position, int radius) => _CreateNebula.Invoke(position, radius);
+        public static void CreateNebula(Vector3D position, int radius) => _CreateNebula?.Invoke(position, radius);
 
         /// <summary>
         /// Returns true if a weather is occuring or incoming at the position
         /// </summary>
         public static bool IsNearWeather(Vector3D Position) => _IsNearWeather?.Invoke(Position) ?? false;
+
+        /// <summary>
+        /// Sets the colors of the nebula at the provided position
+        /// </summary>
+        public static void SetColors(Vector3D position, Vector4 primaryColor, Vector4 secondaryColor) => _SetColors?.Invoke(position, primaryColor, secondaryColor);
+
+        /// <summary>
+        /// Removes the nebula at the provided position, returns true if it was successfull
+        /// </summary>
+        public static bool RemoveNebula(Vector3D position) => _RemoveNebula?.Invoke(position) ?? false;
+
+        /// <summary>
+        /// Gets the primary color of the nebula at the provided position
+        /// </summary>
+        public static Vector4? GetPrimaryColor(Vector3D position) => _GetPrimaryColor?.Invoke(position);
+
+        /// <summary>
+        /// Gets the secondary color of the nebula at the provided position
+        /// </summary>
+        public static Vector4? GetSecondaryColor(Vector3D position) => _GetSecondaryColor?.Invoke(position);
 
         public override void LoadData()
         {
@@ -185,7 +210,12 @@ namespace Jakaria.API
 
                     //6
                     _CreateNebula = (Action<Vector3D, int>)ModAPIMethods["CreateNebula"];
-                }
+
+                    _SetColors = (Action<Vector3D, Vector4, Vector4>)ModAPIMethods["SetColors"];
+                    _GetPrimaryColor = (Func<Vector3D, Vector4?>)ModAPIMethods["GetPrimaryColor"];
+                    _GetSecondaryColor = (Func<Vector3D, Vector4?>)ModAPIMethods["GetSecondaryColor"];
+                    _RemoveNebula = (Func<Vector3D, bool>)ModAPIMethods["RemoveNebula"];
+    }
                 catch (Exception e)
                 {
                     MyAPIGateway.Utilities.ShowMessage("NebulaMod", "Mod '" + ModName + "' encountered an error when registering the Nebula Mod API, see log for more info.");

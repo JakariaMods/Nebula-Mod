@@ -472,16 +472,8 @@ namespace Jakaria
                         break;
                     }
 
-                    for (int i = 0; i < Nebulae.Count; i++)
-                    {
-                        if (Nebulae[i].IsInsideNebulaBounding(Session.CameraPosition))
-                        {
-                            Nebulae.RemoveAtFast(i);
-                            SyncToServer(NebulaPacketType.Nebulae);
-                            JakUtils.ShowMessage(NebulaTexts.NebulaRemove);
-                            break;
-                        }
-                    }
+                    if(RemoveNebula(Session.CameraPosition))
+                        JakUtils.ShowMessage(NebulaTexts.NebulaRemove);
 
                     break;
 
@@ -1049,6 +1041,22 @@ namespace Jakaria
 
                     break;
             }
+        }
+
+        public bool RemoveNebula(Vector3D position)
+        {
+            for (int i = 0; i < Nebulae.Count; i++)
+            {
+                if (Nebulae[i].IsInsideNebulaBounding(position))
+                {
+                    Nebulae.RemoveAtFast(i);
+                    SyncToServer(NebulaPacketType.Nebulae);
+
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         public void CreateNebula(Vector3D position, int radius)
